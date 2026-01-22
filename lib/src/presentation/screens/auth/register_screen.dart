@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_services.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../domain/entities/user.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/role_selection_card.dart';
+import '../../widgets/common/service_checklist_widget.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -23,6 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   late TextEditingController _phoneController;
   
   UserRole? _selectedRole;
+  List<ApplianceService> _selectedServices = [];
   bool _isLoading = false;
   int _currentStep = 0;
 
@@ -99,13 +102,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   _buildStepIndicator(1, 'Datos'),
+                  if (_selectedRole == UserRole.technician) ...[
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: _currentStep > 1 ? AppColors.primary : AppColors.grey200,
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                    ),
+                    _buildStepIndicator(2, 'Servicios'),
+                  ],
                 ],
               ),
               const SizedBox(height: 32),
               if (_currentStep == 0) ...[
                 _buildRoleSelectionStep(),
-              ] else ...[
+              ] else if (_currentStep == 1) ...[
                 _buildDataCollectionStep(),
+              ] else if (_currentStep == 2) ...[
+                _buildServicesSelectionStep(),
               ],
             ],
           ),
@@ -295,13 +310,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },
         ),
         const SizedBox(height: 32),
-        // Register Button
-        CustomButton(
-          label: AppStrings.signUp,
-          isLoading: _isLoading,
-          onPressed: _isLoading ? null : _handleRegister,
-          width: double.infinity,
-        ),
+        // Next/Register Button
+        if (_selectedRole == UserRole.technician)
+          CustomButton(
+            label: 'Siguiente',
+            onPressed: () {
+              if (_formKey.currentState?.validate() ?? false) {
+                setState(() => _currentStep = 2);
+              }
+            },
+            width: double.infinity,
+          )
+        else
+          CustomButton(
+            label: AppStrings.signUp,
+            isLoading: _isLoading,
+            onPressed: _isLoading
+                ? null
+                : () {
+                    if (_formKey.currentState?.validate() ?? false) {
+                      _handleRegister();
+                    }
+                  },
+            width: double.infinity,
+          ),
         const SizedBox(height: 16),
         // Back Button
         OutlinedButton(
@@ -335,6 +367,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServicesSelectionStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ServiceChecklistWidget(
+          selectedServices: _selectedServices,
+          onServicesChanged: (services) {
+            setState(() {
+              _selectedServices = services;
+            });
+          },
+        ),
+        const SizedBox(height: 32),
+        // Complete Registration Button
+        CustomButton(
+          label: 'Completar Registro',
+          isLoading: _isLoading,
+          onPressed: _selectedServices.isEmpty
+              ? null
+              : () {
+                  if (_formKey.currentState?.validate() ?? false) {
+                    _handleRegister();
+                  }
+                },
+          width: double.infinity,
+        ),
+        const SizedBox(height: 16),
+        // Back Button
+        OutlinedButton(
+          onPressed: () {
+            setState(() => _currentStep = 1);
+          },
+          child: const Text('Volver'),
         ),
       ],
     );

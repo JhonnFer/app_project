@@ -3,6 +3,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../domain/entities/user.dart';
+import 'nearby_technicians_tab.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -30,6 +31,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.location_on_outlined),
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRoutes.location);
+            },
+            tooltip: 'Mi Ubicación',
+          ),
+          IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
               Navigator.of(context).pushNamed(AppRoutes.notifications);
@@ -55,6 +63,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             label: 'Explorar',
           ),
           NavigationDestination(
+            icon: Icon(Icons.location_on_outlined),
+            selectedIcon: Icon(Icons.location_on),
+            label: 'Técnicos',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.chat_outlined),
             selectedIcon: Icon(Icons.chat),
             label: 'Chat',
@@ -76,8 +89,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 1:
         return _buildExploreTab();
       case 2:
-        return _buildChatTab();
+        return const NearbyTechniciansTab();
       case 3:
+        return _buildChatTab();
+      case 4:
         return _buildProfileTab();
       default:
         return _buildHomeTab();

@@ -12,4 +12,5 @@ abstract class AppRoutes {
   static const String createService = '/create-service';
   static const String notifications = '/notifications';
   static const String settings = '/settings';
+  static const String location = '/location';
 }

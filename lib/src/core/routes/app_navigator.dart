@@ -4,6 +4,7 @@ import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/dashboard/dashboard_screen.dart';
 import '../../presentation/screens/dashboard/guest_dashboard_screen.dart';
+import '../../presentation/screens/location/location_screen.dart';
 
 class AppNavigator {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -31,6 +32,10 @@ class AppNavigator {
       case AppRoutes.technicianDashboard:
         return MaterialPageRoute(
           builder: (_) => const DashboardScreen(),
+        );
+      case AppRoutes.location:
+        return MaterialPageRoute(
+          builder: (_) => const LocationScreen(),
         );
       default:
         return MaterialPageRoute(
