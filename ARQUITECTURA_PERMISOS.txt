@@ -1,0 +1,239 @@
+/*
+╔══════════════════════════════════════════════════════════════════════════╗
+║                   ARQUITECTURA DEL SISTEMA DE PERMISOS                   ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            CAPAS Y FLUJO                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 1: DEFINICIÓN DE PERMISOS (app_permissions.dart)                   │
+│                                                                          │
+│  enum Permission { createService, acceptService, ... }                 │
+│  ↓                                                                       │
+│  Map<UserRole, List<Permission>> rolePermissions                        │
+│  ↓                                                                       │
+│  UserRole.client → [createService, viewServices, ...]                  │
+│  UserRole.technician → [acceptService, completeService, ...]           │
+│  UserRole.guest → [viewPublicInfo, ...]                                │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 2: USUARIO Y EXTENSIONES (UserEntity + permission_extensions.dart)│
+│                                                                          │
+│  UserEntity { uid, email, name, role, ... }                            │
+│  ↓                                                                       │
+│  Extension PermissionExtension                                          │
+│  ├─ user.hasPermission(Permission)                                      │
+│  ├─ user.hasAllPermissions([Permission])                                │
+│  ├─ user.canCreateService (getter rápido)                               │
+│  └─ user.isTechnician (getter rápido)                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 3: GUARDS Y PROTECCIÓN (route_guard.dart)                          │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ RouteGuard (Validar en rutas)                                   │   │
+│  ├─ canAccess() → bool                                             │   │
+│  ├─ canAccessAny() → bool                                          │   │
+│  ├─ hasRole() → bool                                               │   │
+│  └─ hasAnyRole() → bool                                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ PermissionGuard (Widget)                                        │   │
+│  ├─ Muestra child si tiene permiso                                 │   │
+│  └─ Muestra fallback si no tiene permiso                           │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ RoleGuard (Widget)                                              │   │
+│  ├─ Muestra child si es el rol permitido                           │   │
+│  └─ Muestra fallback si no es el rol                               │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 4: COMPONENTES UI (permission_button.dart)                         │
+│                                                                          │
+│  ┌──────────────────────┐  ┌───────────────────┐  ┌─────────────────┐  │
+│  │ PermissionButton     │  │ MultiPermission   │  │ RoleButton      │  │
+│  │                      │  │ Button            │  │                 │  │
+│  ├─ requiredPermission  │  ├─ requiredPerms[]  │  ├─ allowedRoles[] │  │
+│  ├─ Solo muestra si has │  ├─ Solo muestra si  │  ├─ Solo muestra   │  │
+│  │   permiso            │  │   TODOS permisos  │  │   para roles     │  │
+│  └──────────────────────┘  └───────────────────┘  └─────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ RoleRestrictedWidget                                             │  │
+│  ├─ allowedRole: UserRole                                           │  │
+│  ├─ Muestra sección completa solo para un rol                       │  │
+│  └─ Ej: Panel de cliente, panel de técnico                          │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ PermissionRestrictedWidget                                       │  │
+│  ├─ requiredPermission: Permission                                  │  │
+│  ├─ Muestra contenido si tiene permiso                              │  │
+│  └─ Muestra nada si no tiene permiso                                │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 5: NAVEGACIÓN (app_router.dart)                                    │
+│                                                                          │
+│  AppRouter.canAccessRoute(routeName, user) → bool                      │
+│  ├─ /create-service → requiere Permission.createService               │
+│  ├─ /accept-service → requiere UserRole.technician                    │
+│  ├─ /chat → requiere Permission.chatWithTechnician                    │
+│  └─ /dashboard → requiere autenticado                                 │
+│                                                                          │
+│  AppRouter.safeNavigate(routeName, user)                               │
+│  ├─ Valida acceso                                                      │
+│  ├─ Navega si OK                                                       │
+│  └─ Muestra error si no tiene permiso                                 │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 6: VALIDACIÓN DE NEGOCIO (auth_validator.dart)                    │
+│                                                                          │
+│  AuthValidator.requirePermission(user, permission)                      │
+│  ├─ Lanza UnauthorizedFailure si no tiene permiso                      │
+│  └─ Continúa si tiene permiso                                          │
+│                                                                          │
+│  AuthValidator.requireRole(user, role)                                 │
+│  ├─ Lanza excepción si no es el rol                                    │
+│  └─ Continúa si es el rol                                              │
+│                                                                          │
+│  En Use Cases:                                                           │
+│  ├─ Validar permisos ANTES de hacer nada                               │
+│  ├─ Si validación falla → retorna Left(Failure)                        │
+│  └─ Si validación OK → ejecuta lógica                                  │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CAPA 7: FIREBASE (automático)                                           │
+│                                                                          │
+│  Collection: 'users'                                                    │
+│  ├─ Document: {uid}                                                     │
+│  │  ├─ uid: string                                                      │
+│  │  ├─ email: string                                                    │
+│  │  ├─ name: string                                                     │
+│  │  ├─ role: string ('client' | 'technician' | 'guest')               │
+│  │  ├─ phone: string (opcional)                                        │
+│  │  ├─ rating: number (solo técnicos)                                  │
+│  │  └─ serviceCount: number (solo técnicos)                            │
+│  └─ ¡SE CREA AUTOMÁTICAMENTE!                                          │
+│                                                                          │
+│  NO NECESITAS CREAR NADA MANUALMENTE                                    │
+│  Firestore crea la colección cuando haces el primer set()              │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          FLUJO DE DATOS COMPLETO                        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+        USUARIO ABRE APP
+            ↓
+        LOGIN/REGISTRO
+            ↓
+        Firebase crea documento en users collection
+            ↓
+        Obtener UserEntity con role
+            ↓
+        USUARIO INTENTA ACCIÓN
+            ↓
+    ┌───────────────────────────────────────┐
+    │                                       │
+  1.│ Mostrar PermissionButton (validar)    │ ← UI Layer
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓ (Si visible/clickeable)
+    ┌───────────────────────────────────────┐
+    │                                       │
+  2.│ AppRouter.safeNavigate (validar)      │ ← Navigation Layer
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓ (Si permitido)
+    ┌───────────────────────────────────────┐
+    │                                       │
+  3.│ Navegar a pantalla                    │
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓
+    ┌───────────────────────────────────────┐
+    │                                       │
+  4.│ Use Case ejecuta validación           │ ← Business Logic Layer
+    │ AuthValidator.requirePermission()     │
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓ (Si OK)
+    ┌───────────────────────────────────────┐
+    │                                       │
+  5.│ Ejecutar lógica de negocio            │
+    │ Guardar en Firestore                  │
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓
+    ┌───────────────────────────────────────┐
+    │                                       │
+  6.│ Firebase crea/modifica documento      │ ← Data Layer
+    │ Automáticamente                       │
+    │                                       │
+    └───────────────────────────────────────┘
+            ↓
+        ACCIÓN COMPLETADA ✅
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              SEGURIDAD EN CAPAS                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+  SI USUARIO MANIPULA UI (ej: inyecta botón escondido)
+        ↓
+  1️⃣ Intenta navegar
+        ↓
+  2️⃣ AppRouter bloquea sin permiso
+        ↓
+  3️⃣ Si logra pasar (cliente hackea)
+        ↓
+  4️⃣ Use Case valida nuevamente
+        ↓
+  5️⃣ Si llega a pasar (muy difícil)
+        ↓
+  6️⃣ Firebase Rules pueden validar (opcional)
+        ↓
+  OPERACIÓN BLOQUEADA EN ALGÚN NIVEL ✅
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            ARCHIVOS POR NIVEL                           │
+└─────────────────────────────────────────────────────────────────────────┘
+
+NIVEL 1 - DEFINICIÓN
+  └─ lib/core/constants/app_permissions.dart
+
+NIVEL 2 - USUARIO
+  └─ lib/core/utils/permission_extensions.dart
+
+NIVEL 3 - GUARDS
+  └─ lib/core/routes/route_guard.dart
+
+NIVEL 4 - COMPONENTES UI
+  ├─ lib/features/auth/presentation/widgets/common/permission_button.dart
+  └─ lib/features/auth/presentation/widgets/common/role_restricted_widget.dart
+
+NIVEL 5 - NAVEGACIÓN
+  └─ lib/core/routes/app_router.dart
+
+NIVEL 6 - VALIDACIÓN
+  └─ lib/core/utils/auth_validator.dart
+
+NIVEL 7 - DATOS
+  └─ Firebase (automático)
+
+REFERENCIAS
+  ├─ lib/GUIA_PERMISOS.md
+  ├─ lib/features/auth/presentation/widgets/examples/dashboard_example.dart
+  └─ lib/features/auth/domain/usecases/EJEMPLO_usecase_con_permisos.dart
+*/

@@ -39,7 +39,20 @@ dependencies:
   geolocator: ^10.0.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
-
+    # Firebase Core (OBLIGATORIO)
+  firebase_core: ^3.6.0
+  
+  # Servicios que necesites (según tu app):
+  firebase_auth: ^5.3.1           # Para login/registro
+  cloud_firestore: ^5.4.4         # Para base de datos
+  firebase_storage: ^12.3.4       # Para almacenar archivos/imágenes
+  geoflutterfire_plus: ^0.0.3     # Para búsquedas por ubicación (opcional)
+    # State Management & Dependency Injection
+  get_it: ^7.6.0
+  
+  # Functional Programming
+  dartz: ^0.10.1
+  equatable: ^2.0.5
 dev_dependencies:
   flutter_test:
     sdk: flutter

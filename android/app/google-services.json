@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "965066273373",
+    "project_id": "epn-proyectos-38e79",
+    "storage_bucket": "epn-proyectos-38e79.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965066273373:android:f8a53a1c447df23416d3b4",
+        "android_client_info": {
+          "package_name": "com.example.app_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABhG35l3pcfTytJjScVZK1PmCK7s2jKms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
