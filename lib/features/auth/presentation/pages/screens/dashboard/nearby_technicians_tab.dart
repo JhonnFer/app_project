@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../data/datasources/location_service.dart';
 import '../../../../domain/entities/location.dart';
@@ -31,7 +32,7 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
   Future<void> _initializeData() async {
     try {
       setState(() => _isLoading = true);
-      
+
       // Obtener ubicación actual con timeout personalizado
       LocationData location;
       try {
@@ -56,12 +57,17 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
       }
 
       setState(() => _currentLocation = location);
-      
-      // Simular técnicos cercanos
-      _nearbyTechnicians = _generateMockTechnicians(location);
-      
+
+      // Obtener técnicos reales de Firebase
+      _nearbyTechnicians = await _fetchNearbyTechniciansFromFirebase(location);
+
+      // Si no hay técnicos en Firebase, usar mock como fallback
+      if (_nearbyTechnicians.isEmpty) {
+        _nearbyTechnicians = _generateMockTechnicians(location);
+      }
+
       setState(() => _isLoading = false);
-      
+
       // Centrar el mapa en la ubicación actual
       _mapController.move(
         LatLng(location.latitude, location.longitude),
@@ -72,6 +78,64 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
         _errorMessage = 'Error al cargar datos: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<List<TechnicianLocation>> _fetchNearbyTechniciansFromFirebase(
+      LocationData userLocation) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+
+      // Obtener todos los técnicos de Firestore
+      final techniciansSnapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'technician')
+          .get();
+
+      final technicians = <TechnicianLocation>[];
+
+      // Convertir documentos a TechnicianLocation
+      for (var doc in techniciansSnapshot.docs) {
+        final data = doc.data();
+
+        // Crear ubicación del técnico
+        final technicianLocation = LocationData(
+          latitude: data['latitude'] as double? ?? userLocation.latitude,
+          longitude: data['longitude'] as double? ?? userLocation.longitude,
+          accuracy: 5.0,
+          address: data['address'] as String? ?? 'Ubicación desconocida',
+          timestamp: DateTime.now(),
+        );
+
+        // Calcular distancia
+        final distance = TechnicianLocation.calculateDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          technicianLocation.latitude,
+          technicianLocation.longitude,
+        );
+
+        technicians.add(
+          TechnicianLocation(
+            id: doc.id,
+            name: data['name'] as String? ?? 'Técnico',
+            profileImage: data['profileImage'] as String? ??
+                'https://via.placeholder.com/150',
+            rating: data['rating'] as double? ?? 0.0,
+            completedServices: data['completedServices'] as int? ?? 0,
+            location: technicianLocation,
+            services: List<String>.from(data['specialties'] as List? ?? []),
+            isOnline: data['isAvailable'] as bool? ?? true,
+            distanceKm: distance,
+          ),
+        );
+      }
+
+      return technicians;
+    } catch (e) {
+      print('Error fetching technicians from Firebase: $e');
+      // Si falla, retornar lista vacía
+      return [];
     }
   }
 
@@ -147,7 +211,7 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
         distanceKm: 1.45,
       ),
     ];
-    
+
     // Ordenar por distancia
     mockTechnicians.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
     return mockTechnicians;
@@ -162,7 +226,8 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 80, color: AppColors.error),
+                    const Icon(Icons.error_outline,
+                        size: 80, color: AppColors.error),
                     const SizedBox(height: 16),
                     Text(_errorMessage!),
                     const SizedBox(height: 16),
@@ -323,7 +388,8 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
               children: [
                 const Icon(Icons.star, size: 14, color: Colors.amber),
                 const SizedBox(width: 4),
-                Text('${technician.rating} (${technician.completedServices} servicios)'),
+                Text(
+                    '${technician.rating} (${technician.completedServices} servicios)'),
               ],
             ),
             Text(
@@ -362,7 +428,8 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
               children: [
                 const Icon(Icons.star, color: Colors.amber),
                 const SizedBox(width: 8),
-                Text('${technician.rating} - ${technician.completedServices} servicios'),
+                Text(
+                    '${technician.rating} - ${technician.completedServices} servicios'),
               ],
             ),
             const SizedBox(height: 8),

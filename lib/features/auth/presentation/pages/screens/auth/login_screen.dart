@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get_it/get_it.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
-import '../../../../../../core/routes/app_routes.dart';
+import '../../../../../../core/routes/app_router.dart';
 import '../../../widgets/common/custom_text_field.dart';
 import '../../../widgets/common/custom_button.dart';
+import '../../../../domain/usecases/login_usecase.dart';
+import '../../../providers/session_provider.dart';
+
+final sl = GetIt.instance;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -41,30 +45,35 @@ class _LoginScreenState extends State<LoginScreen> {
         final email = _emailController.text.trim();
         final password = _passwordController.text;
 
-        // INICIAR SESIÓN EN FIREBASE AUTHENTICATION
-        await FirebaseAuth.instance
-            .signInWithEmailAndPassword(email: email, password: password);
+        // Usar LoginUseCase
+        final result = await sl<LoginUseCase>()(
+          LoginParams(email: email, password: password),
+        );
 
-        if (mounted) {
-          setState(() => _isLoading = false);
-          // Navegar al dashboard
-          Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-        }
-      } on FirebaseAuthException catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          String errorMessage = 'Error en el inicio de sesión';
-          if (e.code == 'user-not-found') {
-            errorMessage = 'No existe cuenta con este correo';
-          } else if (e.code == 'wrong-password') {
-            errorMessage = 'Contraseña incorrecta';
-          } else if (e.code == 'invalid-email') {
-            errorMessage = 'Correo inválido';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-          );
-        }
+        result.fold(
+          // Error
+          (failure) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(failure.toString()),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          // Éxito
+          (user) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+              // Guardar usuario en SessionManager para acceso rápido en memoria
+              SessionManager().setCurrentUser(user);
+              // Sesión ya se guarda en SharedPreferences en el repositorio
+              Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+            }
+          },
+        );
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);

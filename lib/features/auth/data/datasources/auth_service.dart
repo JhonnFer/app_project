@@ -16,6 +16,7 @@ abstract class AuthRemoteDataSource {
   User? getCurrentUser();
   Stream<User?> authStateChanges();
   Future<Map<String, dynamic>?> getUserData(String uid);
+  Future<Map<String, dynamic>> getUserServices(String uid);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -100,6 +101,59 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       return doc.data();
     } catch (e) {
       return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getUserServices(String uid) async {
+    try {
+      // Obtener servicios del usuario (para clientes: servicios solicitados)
+      final servicesSnapshot = await _firestore
+          .collection('services')
+          .where('clientId', isEqualTo: uid)
+          .get();
+
+      // Contar por estado
+      int inProgress = 0;
+      int completed = 0;
+
+      for (var doc in servicesSnapshot.docs) {
+        final status = doc.data()['status'] as String?;
+        if (status == 'in_progress') {
+          inProgress++;
+        } else if (status == 'completed') {
+          completed++;
+        }
+      }
+
+      // Obtener servicios recientes
+      final recentServices = await _firestore
+          .collection('services')
+          .where('clientId', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(2)
+          .get();
+
+      return {
+        'inProgress': inProgress,
+        'completed': completed,
+        'recentServices': recentServices.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'title': data['title'] ?? 'Sin título',
+            'technician': data['technicianName'] ?? 'Sin asignar',
+            'status': data['status'] ?? 'pending',
+            'rating': data['rating'] ?? 0.0,
+          };
+        }).toList(),
+      };
+    } catch (e) {
+      return {
+        'inProgress': 0,
+        'completed': 0,
+        'recentServices': [],
+      };
     }
   }
 

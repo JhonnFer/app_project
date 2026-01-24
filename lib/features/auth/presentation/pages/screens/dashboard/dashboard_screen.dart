@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
-import '../../../../../../core/routes/app_routes.dart';
+import '../../../../../../core/routes/app_router.dart';
 import '../../../../domain/entities/user_entity.dart';
+import '../../../../domain/usecases/get_user_services_usecase.dart';
+import '../../../../presentation/providers/session_provider.dart';
 import 'nearby_technicians_tab.dart';
+
+final sl = GetIt.instance;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -14,14 +19,50 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
-  // Simulamos que el usuario logueado es un cliente
-  final _currentUser = UserEntity.client(
-    uid: '1',
-    email: 'cliente@ejemplo.com',
-    name: 'Juan Pérez',
-    phone: '612345678',
-    createdAt: DateTime.now(),
-  );
+  UserEntity? _currentUser;
+  bool _isLoading = true;
+  Map<String, dynamic>? _userServices;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // Obtener usuario de la sesión (singleton)
+      final session = SessionManager();
+      UserEntity? user = session.currentUser;
+
+      // Si no está en memoria, cargar desde SharedPreferences
+      if (user == null) {
+        user = await session.checkSession();
+      }
+
+      if (user != null) {
+        setState(() => _currentUser = user);
+
+        // Cargar servicios del usuario
+        final result = await sl<GetUserServicesUseCase>()(
+          GetUserServicesParams(uid: user.uid),
+        );
+
+        result.fold(
+          (failure) => print('Error cargando servicios: $failure'),
+          (services) => setState(() => _userServices = services),
+        );
+      } else {
+        print('No hay usuario autenticado');
+      }
+    } catch (e) {
+      print('Error cargando datos: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +141,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHomeTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_currentUser == null) {
+      return const Center(child: Text('Error al cargar datos del usuario'));
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -123,7 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _currentUser.name,
+                  _currentUser!.name,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
@@ -145,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: _buildStatCard(
                   icon: Icons.assignment_outlined,
                   title: 'En Progreso',
-                  value: '2',
+                  value: '${_userServices?['inProgress'] ?? 0}',
                   color: AppColors.info,
                 ),
               ),
@@ -154,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: _buildStatCard(
                   icon: Icons.check_circle_outlined,
                   title: 'Completados',
-                  value: '8',
+                  value: '${_userServices?['completed'] ?? 0}',
                   color: AppColors.success,
                 ),
               ),
@@ -167,19 +216,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          _buildServiceCard(
-            title: 'Reparación de Refrigerador',
-            technician: 'Carlos García',
-            status: 'En Progreso',
-            rating: 4.5,
-          ),
-          const SizedBox(height: 12),
-          _buildServiceCard(
-            title: 'Instalación de Lavadora',
-            technician: 'María López',
-            status: 'Completado',
-            rating: 5.0,
-          ),
+          // Servicios recientes de Firebase
+          if (_userServices != null &&
+              (_userServices!['recentServices'] as List).isNotEmpty)
+            ...((_userServices!['recentServices'] as List).map((service) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildServiceCard(
+                  title: service['title'] as String,
+                  technician: service['technician'] as String,
+                  status: service['status'] as String == 'completed'
+                      ? 'Completado'
+                      : 'En Progreso',
+                  rating: service['rating'] as double? ?? 0.0,
+                ),
+              );
+            }).toList())
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Center(
+                child: Text(
+                  'No hay servicios registrados',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           // Browse Services Button
           SizedBox(
@@ -276,12 +338,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _currentUser.name,
+            _currentUser?.name ?? 'Usuario',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 4),
           Text(
-            _currentUser.role.name.toUpperCase(),
+            _currentUser?.role.name.toUpperCase() ?? 'GUEST',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.bold,
@@ -292,13 +354,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildProfileInfoTile(
             icon: Icons.email_outlined,
             label: 'Correo',
-            value: _currentUser.email,
+            value: _currentUser?.email ?? 'No registrado',
           ),
           const SizedBox(height: 12),
           _buildProfileInfoTile(
             icon: Icons.phone_outlined,
             label: 'Teléfono',
-            value: _currentUser.phone ?? 'No registrado',
+            value: _currentUser?.phone ?? 'No registrado',
           ),
           const SizedBox(height: 24),
           // Action Buttons
@@ -391,7 +453,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),

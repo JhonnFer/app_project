@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
-import '../../../../../../core/routes/app_routes.dart';
+import '../../../../../../core/routes/app_router.dart';
 
 class GuestDashboardScreen extends StatefulWidget {
   const GuestDashboardScreen({Key? key}) : super(key: key);

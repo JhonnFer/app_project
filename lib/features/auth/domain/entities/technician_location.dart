@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'location.dart';
 
 class TechnicianLocation {
@@ -23,7 +24,7 @@ class TechnicianLocation {
     required this.distanceKm,
   });
 
-  // Calcular distancia desde una ubicación
+  // Calcular distancia desde una ubicación usando la fórmula de Haversine
   static double calculateDistance(
     double lat1,
     double lon1,
@@ -34,22 +35,15 @@ class TechnicianLocation {
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
 
-    final a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(_toRadians(lat1)) *
-            Math.cos(_toRadians(lat2)) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(lat1)) *
+            math.cos(_toRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
 
-    final c = 2 * Math.asin(Math.sqrt(a));
+    final c = 2 * math.asin(math.sqrt(a));
     return earthRadiusKm * c;
   }
 
-  static double _toRadians(double degrees) => degrees * (3.141592653589793 / 180.0);
-}
-
-class Math {
-  static double sin(double x) => throw UnimplementedError();
-  static double cos(double x) => throw UnimplementedError();
-  static double sqrt(double x) => throw UnimplementedError();
-  static double asin(double x) => throw UnimplementedError();
+  static double _toRadians(double degrees) => degrees * (math.pi / 180.0);
 }

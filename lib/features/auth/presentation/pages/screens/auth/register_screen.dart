@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import '../../../../domain/entities/user_entity.dart';
+import '../../../../domain/usecases/register_usecase.dart';
+import '../../../providers/session_provider.dart';
+
+final sl = GetIt.instance;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -77,48 +80,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final phone = _phoneController.text;
         final role = _selectedRole!.name;
 
-        // REGISTRAR EN FIREBASE AUTHENTICATION
-        final userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(email: email, password: password);
+        // Usar RegisterUseCase
+        final result = await sl<RegisterUseCase>()(
+          RegisterParams(
+            email: email,
+            password: password,
+            name: name,
+            role: role,
+            phone: phone,
+          ),
+        );
 
-        // GUARDAR DATOS EN FIRESTORE
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set({
-          'uid': userCredential.user!.uid,
-          'email': email,
-          'name': name,
-          'role': role,
-          'phone': phone,
-          'rating': role == 'technician' ? 0.0 : null,
-          'serviceCount': role == 'technician' ? 0 : null,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        if (mounted) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('¡Registro exitoso!')),
-          );
-          // Navegar al dashboard después de registro exitoso
-          Navigator.of(context).pushReplacementNamed('/dashboard');
-        }
-      } on FirebaseAuthException catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          String errorMessage = 'Error en el registro';
-          if (e.code == 'email-already-in-use') {
-            errorMessage = 'Este correo ya está registrado';
-          } else if (e.code == 'weak-password') {
-            errorMessage = 'La contraseña es muy débil';
-          } else if (e.code == 'invalid-email') {
-            errorMessage = 'Correo inválido';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-          );
-        }
+        result.fold(
+          // Error
+          (failure) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(failure.toString()),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          // Éxito
+          (user) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+              // Guardar usuario en SessionManager para acceso rápido en memoria
+              SessionManager().setCurrentUser(user);
+              // Sesión ya se guarda en SharedPreferences en el repositorio
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('¡Registro exitoso!')),
+              );
+              // Navegar al dashboard después de registro exitoso
+              Navigator.of(context).pushReplacementNamed('/dashboard');
+            }
+          },
+        );
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);

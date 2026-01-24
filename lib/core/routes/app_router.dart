@@ -20,6 +20,7 @@ class AppRouter {
       // Rutas públicas
       case AppRoutes.login:
       case AppRoutes.register:
+      case AppRoutes.splash:
         return true;
 
       // Rutas que requieren autenticación
@@ -119,7 +120,7 @@ class AppRouter {
 
 /// Clase con las rutas disponibles
 abstract class AppRoutes {
-  static const String splash = '/';
+  static const String splash = '/splash';
   static const String login = '/login';
   static const String register = '/register';
   static const String dashboard = '/dashboard';
@@ -133,4 +134,5 @@ abstract class AppRoutes {
   static const String notifications = '/notifications';
   static const String settings = '/settings';
   static const String location = '/location';
+  
 }

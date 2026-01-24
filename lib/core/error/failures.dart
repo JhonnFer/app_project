@@ -21,3 +21,6 @@ class CacheFailure extends Failure {
 class NetworkFailure extends Failure {
   const NetworkFailure(super.message);
 }
+class NoUserFailure extends Failure {
+  const NoUserFailure() : super('No hay usuario autenticado');
+}
