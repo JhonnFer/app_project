@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/constants/app_services.dart';
 import '../../../../../../core/routes/app_router.dart';
+import '../../../../../../core/services/notification_service.dart';
 import '../../../../domain/entities/user_entity.dart';
 import '../../../../presentation/providers/session_provider.dart';
+import 'nearby_technicians_tab.dart';
 
 final sl = GetIt.instance;
 
@@ -36,6 +38,9 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
   double? _latitude;
   double? _longitude;
   String? _selectedSector;
+
+  // 🆕 Variables para técnicos
+  List<Map<String, dynamic>> _selectedTechnicians = [];
 
   final List<String> _urgencyLevels = ['Baja', 'Media', 'Alta', 'Urgente'];
 
@@ -113,10 +118,39 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
           print('📍 Usando coordenadas: ${_addressController.text}');
         }
       });
+
+      // 🆕 Cargar técnicos cercanos después de seleccionar ubicación
+      if (_latitude != null && _longitude != null) {
+        await _showTechnicianMapSelector();
+      }
     } else {
       print('❌ No se recibieron datos del mapa');
     }
   }
+
+  /// 🆕 Abrir mapa para seleccionar técnicos
+  Future<void> _showTechnicianMapSelector() async {
+  if (!mounted) return;
+
+  final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: const NearbyTechniciansTab(
+        allowSelection: true,
+        maxSelection: 2,
+      ),
+    ),
+  );
+
+  if (result != null && mounted) {
+    setState(() {
+      _selectedTechnicians = result;
+    });
+    print('✅ Técnicos actualizados en el estado');
+  }
+}
 
   Future<void> _submitForm() async {
     print('=== INICIANDO ENVÍO DE FORMULARIO ===');
@@ -197,6 +231,7 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
       );
 
       print('✅ Fecha y hora: $preferredDateTime');
+      
 
       // Crear documento de solicitud en Firebase
       final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -232,16 +267,61 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
 
       // Guardar en Firestore
       print('⏳ Guardando en Firestore...');
-      await _firestore.collection('service_requests').add(serviceRequest);
+      final docRef =
+          await _firestore.collection('service_requests').add(serviceRequest);
+      final requestId = docRef.id;
 
-      print('✅ Solicitud guardada en Firestore');
+      print('✅ Solicitud guardada en Firestore: $requestId');
+
+      // 🆕 Validar que hay técnicos seleccionados
+      if (_selectedTechnicians.isEmpty) {
+        print('⚠️ No hay técnicos seleccionados');
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Por favor selecciona al menos un técnico del mapa'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Borrar la solicitud que se acaba de crear
+        await _firestore.collection('service_requests').doc(requestId).delete();
+        return;
+      }
+
+      // 📲 Notificar solo los técnicos seleccionados
+      print('📲 Notificando ${_selectedTechnicians.length} técnicos seleccionados...');
+      final notificationService = NotificationService();
+      
+      final selectedIds = _selectedTechnicians
+          .map((t) => t['id'] as String)
+          .toList();
+      
+      final techniciansNotified =
+          await notificationService.notifySelectedTechnicians(
+        requestId: requestId,
+        selectedTechnicianIds: selectedIds,
+        clientName: currentUser.name,
+        clientEmail: currentUser.email,
+        clientPhone: _phoneController.text.trim(),
+        serviceType: _selectedService!.name,
+        description: _descriptionController.text.trim(),
+        urgencyLevel: _selectedUrgency ?? 'Media',
+        latitude: _latitude ?? 0,
+        longitude: _longitude ?? 0,
+        address: _addressController.text.trim(),
+        preferredDate: preferredDateTime,
+      );
+
+      print('✅ Técnicos notificados: $techniciansNotified');
 
       // Éxito
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Solicitud enviada exitosamente'),
+        SnackBar(
+          content: Text('Solicitud enviada a $techniciansNotified técnicos'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -534,6 +614,78 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
               ),
               const SizedBox(height: 32),
 
+              // 🆕 SELECCIONAR TÉCNICOS - Botón para abrir mapa
+              Text(
+                'Técnicos Cercanos',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _addressController.text.isEmpty
+                    ? null
+                    : _showTechnicianMapSelector,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _addressController.text.isEmpty
+                          ? AppColors.grey300
+                          : AppColors.primary,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: _addressController.text.isEmpty
+                        ? AppColors.grey100
+                        : AppColors.primary.withOpacity(0.05),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 40,
+                        color: _addressController.text.isEmpty
+                            ? Colors.grey
+                            : AppColors.primary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _selectedTechnicians.isEmpty
+                            ? 'Ver técnicos disponibles en el mapa'
+                            : 'Cambiar técnicos seleccionados',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: _addressController.text.isEmpty
+                                  ? Colors.grey
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (_selectedTechnicians.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _selectedTechnicians.map((tech) {
+                            return Chip(
+                              label: Text(tech['name'] ?? 'Técnico'),
+                              onDeleted: () {
+                                setState(() {
+                                  _selectedTechnicians.removeWhere(
+                                    (t) => t['id'] == tech['id'],
+                                  );
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
               // Botones
               Row(
                 children: [
@@ -568,4 +720,4 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
       ),
     );
   }
-}
+} 

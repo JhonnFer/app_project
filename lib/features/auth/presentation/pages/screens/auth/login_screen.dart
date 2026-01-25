@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/routes/app_router.dart';
+import '../../../../../../core/services/notification_service.dart';
 import '../../../widgets/common/custom_text_field.dart';
 import '../../../widgets/common/custom_button.dart';
 import '../../../../domain/usecases/login_usecase.dart';
@@ -38,55 +39,65 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
+  if (_formKey.currentState?.validate() ?? false) {
+    setState(() => _isLoading = true);
 
-      try {
-        final email = _emailController.text.trim();
-        final password = _passwordController.text;
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
 
-        // Usar LoginUseCase
-        final result = await sl<LoginUseCase>()(
-          LoginParams(email: email, password: password),
-        );
+      final result = await sl<LoginUseCase>()(
+        LoginParams(email: email, password: password),
+      );
 
-        result.fold(
-          // Error
-          (failure) {
-            if (mounted) {
-              setState(() => _isLoading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(failure.toString()),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-          // Éxito
-          (user) {
-            if (mounted) {
-              setState(() => _isLoading = false);
-              // Guardar usuario en SessionManager para acceso rápido en memoria
-              SessionManager().setCurrentUser(user);
-              // Sesión ya se guarda en SharedPreferences en el repositorio
-              Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-            }
-          },
-        );
-      } catch (e) {
-        if (mounted) {
+      result.fold(
+        // ❌ Error
+        (failure) {
+          if (!mounted) return;
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: ${e.toString()}'),
+              content: Text(failure.toString()),
               backgroundColor: Colors.red,
             ),
           );
-        }
-      }
+        },
+
+        // ✅ Éxito (SIN await)
+        (user) async {
+          if (!mounted) return;
+
+          setState(() => _isLoading = false);
+
+          // Guardar usuario en memoria
+          SessionManager().setCurrentUser(user);
+
+          // 🔔 FCM TOKEN (correcto)
+          final fcmToken = await NotificationService().getFCMToken();
+          if (fcmToken != null) {
+            await NotificationService().saveFCMTokenToFirebase(
+              user.uid,
+              fcmToken,
+            );
+          }
+
+          Navigator.of(context)
+              .pushReplacementNamed(AppRoutes.dashboard);
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

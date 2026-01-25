@@ -8,6 +8,7 @@ import '../../features/auth/presentation/pages/screens/location/location_screen.
 import '../../features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/service_request_form_screen.dart';
+import '../../features/auth/presentation/pages/screens/notifications_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/login_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/register_screen.dart';
 import '../../features/auth/presentation/pages/screens/splash_screen.dart';
@@ -70,6 +71,9 @@ class AppRouter {
               currentUser,
               Permission.editProfile,
             );
+
+      case AppRoutes.notifications:
+        return currentUser != null && currentUser.isTechnician;
 
       case AppRoutes.createService:
       case AppRoutes.serviceRequest:
@@ -179,6 +183,12 @@ class AppRouter {
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => ServiceRequestFormScreen(user: user),
+        );
+
+      case AppRoutes.notifications:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const NotificationsScreen(),
         );
 
       default:

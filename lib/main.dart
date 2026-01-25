@@ -8,6 +8,7 @@ import 'injection_container.dart' as di;
 // Core
 import 'core/theme/app_theme.dart';
 import 'core/routes/app_router.dart';
+import 'core/services/notification_service.dart';
 
 // Session
 import 'features/auth/presentation/providers/session_provider.dart';
@@ -26,6 +27,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // 🔔 Inicializar Firebase Cloud Messaging
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+
   await di.init();
 
   runApp(const MyApp());
@@ -39,25 +44,25 @@ class MyApp extends StatelessWidget {
     return Provider<SessionManager>(
       create: (_) => SessionManager(),
       child: MaterialApp(
-  title: 'App Técnicos',
-  debugShowCheckedModeBanner: false,
-  theme: AppTheme.lightTheme(),
-  navigatorKey: AppRouter.navigatorKey,
+        title: 'App Técnicos',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme(),
+        navigatorKey: AppRouter.navigatorKey,
 
-  initialRoute: AppRoutes.splash,
+        initialRoute: AppRoutes.splash,
 
-  // 👇 RUTAS SIMPLES (splash, auth, dashboards)
-  routes: {
-    AppRoutes.splash: (_) => const SplashScreen(),
-    AppRoutes.login: (_) => const LoginScreen(),
-    AppRoutes.register: (_) => const RegisterScreen(),
-    AppRoutes.dashboard: (_) => const DashboardScreen(),
-    AppRoutes.guestDashboard: (_) => const GuestDashboardScreen(),
-  },
+        // 👇 RUTAS SIMPLES (splash, auth, dashboards)
+        routes: {
+          AppRoutes.splash: (_) => const SplashScreen(),
+          AppRoutes.login: (_) => const LoginScreen(),
+          AppRoutes.register: (_) => const RegisterScreen(),
+          AppRoutes.dashboard: (_) => const DashboardScreen(),
+          AppRoutes.guestDashboard: (_) => const GuestDashboardScreen(),
+        },
 
-  // 👇 RUTAS COMPLEJAS / PROTEGIDAS
-  onGenerateRoute: AppRouter.generateRoute,
-),
+        // 👇 RUTAS COMPLEJAS / PROTEGIDAS
+        onGenerateRoute: AppRouter.generateRoute,
+      ),
     );
   }
 }
