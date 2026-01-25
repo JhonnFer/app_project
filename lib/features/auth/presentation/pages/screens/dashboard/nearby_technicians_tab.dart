@@ -33,6 +33,7 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
 
   Future<void> _initializeData() async {
     try {
+      print('=== INICIALIZANDO TAB DE TÉCNICOS ===');
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -42,6 +43,7 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
       LocationData location;
 
       try {
+        print('📍 Obteniendo ubicación actual...');
         final position = await _locationService.getCurrentPosition();
 
         location = LocationData(
@@ -52,7 +54,11 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
           address: 'Ubicación actual',
           timestamp: DateTime.now(),
         );
+        print(
+            '✅ Ubicación obtenida: ${location.latitude}, ${location.longitude}');
       } catch (_) {
+        print('⚠️ Error obteniendo ubicación GPS');
+
         /// Fallback si falla GPS
         location = LocationData(
           userId: 'default',
@@ -62,25 +68,34 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
           address: 'Ubicación predeterminada',
           timestamp: DateTime.now(),
         );
+        print('ℹ️ Usando ubicación predeterminada: Quito');
       }
 
       _currentLocation = location;
 
       /// 👨‍🔧 2. OBTENER TÉCNICOS
-      _nearbyTechnicians =
-          await _fetchNearbyTechniciansFromFirebase(location);
+      print('👨‍🔧 Buscando técnicos cercanos...');
+      _nearbyTechnicians = await _fetchNearbyTechniciansFromFirebase(location);
 
       if (_nearbyTechnicians.isEmpty) {
+        print(
+            'ℹ️ No se encontraron técnicos en Firebase, usando técnicos de prueba');
         _nearbyTechnicians = _generateMockTechnicians(location);
       }
 
-      _mapController.move(
-        LatLng(location.latitude, location.longitude),
-        13,
-      );
-
       setState(() => _isLoading = false);
+
+      // 🗺️ Mover el mapa después de que se actualice el estado
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mapController.move(
+          LatLng(location.latitude, location.longitude),
+          13,
+        );
+      });
+
+      print('✅ Tab de técnicos cargada correctamente');
     } catch (e) {
+      print('❌ Error al inicializar tab: $e');
       setState(() {
         _errorMessage = 'Error al cargar técnicos';
         _isLoading = false;
@@ -92,20 +107,38 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
   Future<List<TechnicianLocation>> _fetchNearbyTechniciansFromFirebase(
       LocationData userLocation) async {
     try {
+      print('🔍 Buscando técnicos en Firebase...');
+
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('role', isEqualTo: 'technician')
           .get();
+
+      print('✅ Se encontraron ${snapshot.docs.length} técnicos');
 
       final List<TechnicianLocation> technicians = [];
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
 
+        print('👨‍🔧 Técnico encontrado: ${data['name']} (${doc.id})');
+        print('   Lat: ${data['latitude']}, Lng: ${data['longitude']}');
+
+        // 🔧 Convertir coordenadas de Firebase (num) a double
+        double techLat = userLocation.latitude;
+        double techLng = userLocation.longitude;
+
+        if (data['latitude'] != null) {
+          techLat = (data['latitude'] as num).toDouble();
+        }
+        if (data['longitude'] != null) {
+          techLng = (data['longitude'] as num).toDouble();
+        }
+
         final techLocation = LocationData(
           userId: doc.id,
-          latitude: (data['latitude'] ?? userLocation.latitude).toDouble(),
-          longitude: (data['longitude'] ?? userLocation.longitude).toDouble(),
+          latitude: techLat,
+          longitude: techLng,
           accuracy: 5,
           address: data['address'] ?? 'Ubicación desconocida',
           timestamp: DateTime.now(),
@@ -122,13 +155,12 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
           TechnicianLocation(
             id: doc.id,
             name: data['name'] ?? 'Técnico',
-            profileImage: data['profileImage'] ??
-                'https://via.placeholder.com/150',
+            profileImage:
+                data['profileImage'] ?? 'https://via.placeholder.com/150',
             rating: (data['rating'] ?? 0).toDouble(),
             completedServices: data['completedServices'] ?? 0,
             location: techLocation,
-            services:
-                List<String>.from(data['specialties'] ?? const []),
+            services: List<String>.from(data['specialties'] ?? const []),
             isOnline: data['isAvailable'] ?? true,
             distanceKm: distance,
           ),
@@ -136,15 +168,16 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
       }
 
       technicians.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      print('✅ Total técnicos cargados: ${technicians.length}');
       return technicians;
-    } catch (_) {
+    } catch (e) {
+      print('❌ Error al buscar técnicos en Firebase: $e');
       return [];
     }
   }
 
   /// 🧪 MOCK
-  List<TechnicianLocation> _generateMockTechnicians(
-      LocationData userLocation) {
+  List<TechnicianLocation> _generateMockTechnicians(LocationData userLocation) {
     return [
       TechnicianLocation(
         id: '1',
@@ -219,9 +252,7 @@ class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
                 height: 40,
                 child: Icon(
                   Icons.person_pin_circle,
-                  color: tech.isOnline
-                      ? AppColors.success
-                      : AppColors.grey400,
+                  color: tech.isOnline ? AppColors.success : AppColors.grey400,
                   size: 40,
                 ),
               ),
