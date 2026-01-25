@@ -253,7 +253,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             height: 48,
             child: ElevatedButton.icon(
               onPressed: () {
-                // Navigate to browse services
+                if (_currentUser == null) return;
+
+                Navigator.of(context).pushNamed(
+                  AppRoutes.serviceRequest,
+                  arguments: _currentUser,
+                );
               },
               icon: const Icon(Icons.add),
               label: const Text('Solicitar Nuevo Servicio'),

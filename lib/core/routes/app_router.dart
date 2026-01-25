@@ -7,6 +7,7 @@ import '../constants/app_permissions.dart';
 import '../../features/auth/presentation/pages/screens/location/location_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
+import '../../features/auth/presentation/pages/screens/dashboard/service_request_form_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/login_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/register_screen.dart';
 import '../../features/auth/presentation/pages/screens/splash_screen.dart';
@@ -71,6 +72,7 @@ class AppRouter {
             );
 
       case AppRoutes.createService:
+      case AppRoutes.serviceRequest:
         return currentUser != null &&
             PermissionManager.userHasPermission(
               currentUser,
@@ -97,6 +99,7 @@ class AppRouter {
         return [Permission.editProfile];
 
       case AppRoutes.createService:
+      case AppRoutes.serviceRequest:
         return [Permission.createService];
 
       default:
@@ -171,6 +174,12 @@ class AppRouter {
           settings: settings,
           builder: (_) => const LocationScreen(),
         );
+      case AppRoutes.serviceRequest:
+        final user = settings.arguments as UserEntity?;
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ServiceRequestFormScreen(user: user),
+        );
 
       default:
         return MaterialPageRoute(
@@ -202,6 +211,7 @@ abstract class AppRoutes {
   static const String location = '/location';
 
   static const String createService = '/create-service';
+  static const String serviceRequest = '/service-request';
   static const String serviceDetail = '/service-detail';
   static const String notifications = '/notifications';
   static const String settings = '/settings';
