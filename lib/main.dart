@@ -8,7 +8,7 @@ import 'injection_container.dart' as di;
 // Core
 import 'core/theme/app_theme.dart';
 import 'core/routes/app_router.dart';
-import 'core/services/notification_service.dart';
+import 'features/auth/data/datasources/notification_service.dart';
 
 // Session
 import 'features/auth/presentation/providers/session_provider.dart';

@@ -252,6 +252,7 @@ class NotificationService {
     required double longitude,
     required String address,
     required DateTime preferredDate,
+    required double proposedPrice,
   }) async {
     try {
       print('📲 === NOTIFICANDO TÉCNICOS SELECCIONADOS ===');
@@ -297,6 +298,8 @@ class NotificationService {
             'longitude': longitude,
             'address': address,
             'preferredDate': preferredDate,
+            'proposedPrice': proposedPrice,
+            'uid': clientName, // uid del cliente para identificar la solicitud
             'isRead': false,
             'createdAt': FieldValue.serverTimestamp(),
             'expiresAt': DateTime.now().add(Duration(hours: 24)),
@@ -542,6 +545,270 @@ class NotificationService {
     } catch (e) {
       print('❌ Error cargando detalles: $e');
       return null;
+    }
+  }
+
+  // ============================================================
+  // 💰 MÉTODOS PARA NEGOCIACIÓN DE PRECIOS
+  // ============================================================
+
+  /// 💬 Enviar contraoferta de precio (técnico envía contraoferta al cliente)
+  Future<bool> sendPriceCounterOffer({
+    required String requestId,
+    required String senderId,
+    required String senderName,
+    required String recipientId,
+    required String recipientName,
+    required double proposedPrice,
+    required double originalPrice,
+    required String reason,
+  }) async {
+    try {
+      print('💬 Enviando contraoferta de precio...');
+      print('   De: $senderName');
+      print('   Para: $recipientName');
+      print('   Precio: \$$proposedPrice (Original: \$$originalPrice)');
+
+      // 1️⃣ Crear documento de negociación
+      final negotiationRef = await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .add({
+        'requestId': requestId,
+        'senderId': senderId,
+        'senderName': senderName,
+        'recipientId': recipientId,
+        'recipientName': recipientName,
+        'proposedPrice': proposedPrice,
+        'originalPrice': originalPrice,
+        'reason': reason,
+        'status': 'pending', // pending, accepted, rejected, expired
+        'createdAt': FieldValue.serverTimestamp(),
+        'respondedAt': null,
+        'responseReason': null,
+      });
+
+      print('✅ Contraoferta creada: ${negotiationRef.id}');
+
+      // 2️⃣ Actualizar estado de negociación en la solicitud
+      await FirebaseFirestore.instance
+          .collection('service_requests')
+          .doc(requestId)
+          .update({
+        'negotiationStatus': 'active',
+        'lastCounterOfferPrice': proposedPrice,
+        'lastCounterOfferAt': FieldValue.serverTimestamp(),
+        'priceStatus': 'negotiating',
+      });
+
+      print('✅ Estado de solicitud actualizado');
+
+      // 3️⃣ Crear notificación para el cliente/técnico
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'recipientId': recipientId,
+        'senderId': senderId,
+        'senderName': senderName,
+        'type': 'price_counter_offer',
+        'requestId': requestId,
+        'negotiationId': negotiationRef.id,
+        'proposedPrice': proposedPrice,
+        'originalPrice': originalPrice,
+        'reason': reason,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': DateTime.now().add(Duration(hours: 24)),
+      });
+
+      print('✅ Notificación de contraoferta enviada');
+      return true;
+    } catch (e) {
+      print('❌ Error enviando contraoferta: $e');
+      return false;
+    }
+  }
+
+  /// ✅ Aceptar contraoferta de precio
+  Future<bool> acceptPriceCounterOffer({
+    required String negotiationId,
+    required String requestId,
+    required String acceptedByUserId,
+    required double agreedPrice,
+  }) async {
+    try {
+      print('✅ Aceptando contraoferta de precio...');
+      print('   Precio acordado: \$$agreedPrice');
+
+      // 1️⃣ Actualizar negociación como aceptada
+      await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .doc(negotiationId)
+          .update({
+        'status': 'accepted',
+        'respondedAt': FieldValue.serverTimestamp(),
+        'acceptedBy': acceptedByUserId,
+      });
+
+      print('✅ Negociación marcada como aceptada');
+
+      // 2️⃣ Actualizar solicitud con precio acordado
+      await FirebaseFirestore.instance
+          .collection('service_requests')
+          .doc(requestId)
+          .update({
+        'proposedPrice': agreedPrice,
+        'priceStatus': 'agreed',
+        'negotiationStatus': 'agreed',
+        'agreedPrice': agreedPrice,
+        'agreedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Precio acordado actualizado en la solicitud');
+
+      // 3️⃣ Rechazar todas las otras negociaciones pendientes
+      final otherNegotiations = await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .where('requestId', isEqualTo: requestId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      for (var doc in otherNegotiations.docs) {
+        if (doc.id != negotiationId) {
+          await doc.reference.update({
+            'status': 'expired',
+            'responseReason': 'Otra contraoferta fue aceptada',
+          });
+        }
+      }
+
+      print('✅ Otras negociaciones canceladas');
+      return true;
+    } catch (e) {
+      print('❌ Error aceptando contraoferta: $e');
+      return false;
+    }
+  }
+
+  /// ❌ Rechazar contraoferta de precio
+  Future<bool> rejectPriceCounterOffer({
+    required String negotiationId,
+    required String requestId,
+    required String rejectedByUserId,
+    required String rejectionReason,
+  }) async {
+    try {
+      print('❌ Rechazando contraoferta de precio...');
+
+      // 1️⃣ Actualizar negociación como rechazada
+      await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .doc(negotiationId)
+          .update({
+        'status': 'rejected',
+        'respondedAt': FieldValue.serverTimestamp(),
+        'rejectedBy': rejectedByUserId,
+        'responseReason': rejectionReason,
+      });
+
+      print('✅ Negociación rechazada');
+
+      // 2️⃣ Crear nueva notificación informando el rechazo
+      final negotiationDoc = await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .doc(negotiationId)
+          .get();
+
+      final data = negotiationDoc.data() as Map<String, dynamic>;
+      final recipientId = data['senderId'] as String;
+      final senderName = data['recipientName'] as String;
+
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'recipientId': recipientId,
+        'senderId': rejectedByUserId,
+        'senderName': senderName,
+        'type': 'price_offer_rejected',
+        'requestId': requestId,
+        'negotiationId': negotiationId,
+        'rejectionReason': rejectionReason,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': DateTime.now().add(Duration(hours: 24)),
+      });
+
+      print('✅ Notificación de rechazo enviada');
+      return true;
+    } catch (e) {
+      print('❌ Error rechazando contraoferta: $e');
+      return false;
+    }
+  }
+
+  /// 📋 Obtener negociaciones de precios para una solicitud
+  Future<List<Map<String, dynamic>>> getPriceNegotiations(
+      String requestId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .where('requestId', isEqualTo: requestId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      print('✅ Negociaciones cargadas: ${snapshot.docs.length}');
+      return snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              })
+          .toList();
+    } catch (e) {
+      print('❌ Error cargando negociaciones: $e');
+      return [];
+    }
+  }
+
+  /// 🔄 Stream de negociaciones pendientes para técnico/cliente
+  Stream<QuerySnapshot> getNegotiationUpdatesStream(String userId) {
+    return FirebaseFirestore.instance
+        .collection('price_negotiations')
+        .where('recipientId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// ✅ Marcar contraoferta como leída
+  Future<void> markCounterOfferAsRead(String notificationId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(notificationId)
+          .update({
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ Contraoferta marcada como leída');
+    } catch (e) {
+      print('❌ Error marcando como leída: $e');
+    }
+  }
+
+  /// 🏁 Cancelar todas las negociaciones de una solicitud
+  Future<void> cancelAllNegotiations(String requestId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('price_negotiations')
+          .where('requestId', isEqualTo: requestId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      for (var doc in snapshot.docs) {
+        await doc.reference.update({
+          'status': 'cancelled',
+          'responseReason': 'Solicitud cancelada por el cliente',
+        });
+      }
+
+      print('✅ Todas las negociaciones canceladas');
+    } catch (e) {
+      print('❌ Error cancelando negociaciones: $e');
     }
   }
 }

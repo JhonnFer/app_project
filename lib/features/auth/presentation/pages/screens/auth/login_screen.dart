@@ -3,7 +3,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/routes/app_router.dart';
-import '../../../../../../core/services/notification_service.dart';
+import '../../../../data/datasources/notification_service.dart';
 import '../../../widgets/common/custom_text_field.dart';
 import '../../../widgets/common/custom_button.dart';
 import '../../../../domain/usecases/login_usecase.dart';

@@ -8,6 +8,7 @@ import '../../features/auth/presentation/pages/screens/location/location_screen.
 import '../../features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/service_request_form_screen.dart';
+import '../../features/auth/presentation/pages/screens/dashboard/test_price_flow_screen.dart';
 import '../../features/auth/presentation/pages/screens/notifications_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/login_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/register_screen.dart';
@@ -191,6 +192,12 @@ class AppRouter {
           builder: (_) => const NotificationsScreen(),
         );
 
+      case AppRoutes.testPriceFlow:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const TestPriceFlowScreen(),
+        );
+
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(
@@ -225,4 +232,5 @@ abstract class AppRoutes {
   static const String serviceDetail = '/service-detail';
   static const String notifications = '/notifications';
   static const String settings = '/settings';
+  static const String testPriceFlow = '/test-price-flow';
 }

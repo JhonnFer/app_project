@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../../core/constants/app_colors.dart';
-import '../../../../../../core/services/notification_service.dart';
+import '../../../../data/datasources/notification_service.dart';
 import '../../../../domain/entities/user_entity.dart';
 import '../../../../presentation/providers/session_provider.dart';
 
@@ -345,6 +345,35 @@ class _TechnicianNotificationsTabState
                 _buildDetailRow('Urgencia', data['urgencyLevel'] ?? '-'),
                 _buildDetailRow('Dirección', data['address'] ?? '-'),
 
+                // 💰 NUEVO: Mostrar precio propuesto
+                if (data['proposedPrice'] != null)
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.primary),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Precio Propuesto:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '\$${(data['proposedPrice'] as num).toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 12),
                 Text(
                   'Descripción:',
@@ -388,6 +417,23 @@ class _TechnicianNotificationsTabState
                   ),
                 ),
                 const SizedBox(height: 12),
+                // 💰 NUEVO: Botón para contraoferta
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.attach_money),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showCounterOfferDialog(context, data);
+                    },
+                    label: const Text('Enviar Contraoferta'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
@@ -412,6 +458,185 @@ class _TechnicianNotificationsTabState
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 💰 ENVIAR CONTRAOFERTA
+  void _showCounterOfferDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
+    final TextEditingController priceController = TextEditingController();
+    final TextEditingController reasonController = TextEditingController();
+    final originalPrice = (data['proposedPrice'] ?? 0.0) as num;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('💰 Enviar Contraoferta'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Precio Original: \$${originalPrice.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: priceController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Tu Precio',
+                  hintText: 'Ej: 60000',
+                  prefixText: '\$ ',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: 'Razón de la Contraoferta',
+                  hintText: 'Explica por qué propones este precio',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (priceController.text.isEmpty ||
+                  reasonController.text.isEmpty) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Por favor completa todos los campos'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              final price = double.tryParse(priceController.text);
+              if (price == null || price <= 0) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Ingresa un precio válido'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Cerrar diálogo de entrada
+              if (!mounted) return;
+              Navigator.pop(dialogContext);
+
+              final session = SessionManager();
+              final technician = session.currentUser;
+
+              if (technician == null) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: Usuario no encontrado'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Mostrar loading con context del widget principal
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadingContext) => const AlertDialog(
+                  content: Row(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(width: 16),
+                      Text('Enviando contraoferta...'),
+                    ],
+                  ),
+                ),
+              );
+
+              try {
+                // Enviar contraoferta
+                final success =
+                    await _notificationService.sendPriceCounterOffer(
+                  requestId: data['requestId'] ?? '',
+                  senderId: technician.uid,
+                  senderName: technician.name,
+                  recipientId: data['uid'] ?? '',
+                  recipientName: data['clientName'] ?? '',
+                  proposedPrice: price,
+                  originalPrice: originalPrice.toDouble(),
+                  reason: reasonController.text.trim(),
+                );
+
+                if (!mounted) return;
+                Navigator.pop(context); // Cerrar loading
+
+                if (success) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Contraoferta enviada correctamente'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  // Limpiar controllers
+                  priceController.dispose();
+                  reasonController.dispose();
+                } else {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('❌ Error al enviar contraoferta'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (!mounted) return;
+                Navigator.pop(context); // Cerrar loading en caso de error
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
+            child: const Text('Enviar'),
+          ),
+        ],
       ),
     );
   }
@@ -496,7 +721,7 @@ class _TechnicianNotificationsTabState
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Rechazar Solicitud'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -518,23 +743,34 @@ class _TechnicianNotificationsTabState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context); // Cerrar diálogo
+              if (!mounted) return;
+              Navigator.pop(dialogContext); // Cerrar diálogo
 
               final session = SessionManager();
               final technician = session.currentUser;
 
-              if (technician == null) return;
+              if (technician == null) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Error: Usuario no encontrado'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
 
-              // Mostrar loading
+              // Mostrar loading con context del widget principal
+              if (!mounted) return;
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) => const AlertDialog(
+                builder: (loadingContext) => const AlertDialog(
                   content: Row(
                     children: [
                       CircularProgressIndicator(),
@@ -545,30 +781,45 @@ class _TechnicianNotificationsTabState
                 ),
               );
 
-              // Rechazar
-              final success = await _notificationService.rejectServiceRequest(
-                requestId: data['requestId'],
-                technicianId: technician.uid,
-                technicianName: technician.name,
-                rejectionReason: reasonController.text.isNotEmpty
-                    ? reasonController.text
-                    : 'Sin especificar',
-              );
-
-              if (!mounted) return;
-              Navigator.pop(context); // Cerrar loading
-
-              if (success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✅ Solicitud rechazada'),
-                    backgroundColor: Colors.orange,
-                  ),
+              try {
+                // Rechazar
+                final success = await _notificationService.rejectServiceRequest(
+                  requestId: data['requestId'],
+                  technicianId: technician.uid,
+                  technicianName: technician.name,
+                  rejectionReason: reasonController.text.isNotEmpty
+                      ? reasonController.text
+                      : 'Sin especificar',
                 );
-              } else {
+
+                if (!mounted) return;
+                Navigator.pop(context); // Cerrar loading
+
+                if (success) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Solicitud rechazada'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  reasonController.dispose();
+                } else {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('❌ Error al rechazar la solicitud'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (!mounted) return;
+                Navigator.pop(context); // Cerrar loading en caso de error
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('❌ Error al rechazar la solicitud'),
+                  SnackBar(
+                    content: Text('Error: $e'),
                     backgroundColor: Colors.red,
                   ),
                 );

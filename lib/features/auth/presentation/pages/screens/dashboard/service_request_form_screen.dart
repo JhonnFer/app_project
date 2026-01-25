@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/constants/app_services.dart';
 import '../../../../../../core/routes/app_router.dart';
-import '../../../../../../core/services/notification_service.dart';
+import '../../../../data/datasources/notification_service.dart';
 import '../../../../domain/entities/user_entity.dart';
 import '../../../../presentation/providers/session_provider.dart';
 import 'nearby_technicians_tab.dart';
@@ -29,6 +29,7 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
   late TextEditingController _descriptionController;
   late TextEditingController _addressController;
   late TextEditingController _phoneController;
+  late TextEditingController _priceController;
 
   ApplianceService? _selectedService;
   String? _selectedUrgency;
@@ -50,6 +51,7 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
     _descriptionController = TextEditingController();
     _addressController = TextEditingController();
     _phoneController = TextEditingController();
+    _priceController = TextEditingController();
     _selectedUrgency = 'Media';
   }
 
@@ -58,6 +60,7 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
     _descriptionController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -130,27 +133,27 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
 
   /// 🆕 Abrir mapa para seleccionar técnicos
   Future<void> _showTechnicianMapSelector() async {
-  if (!mounted) return;
+    if (!mounted) return;
 
-  final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => SizedBox(
-      height: MediaQuery.of(context).size.height * 0.85,
-      child: const NearbyTechniciansTab(
-        allowSelection: true,
-        maxSelection: 2,
+    final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: const NearbyTechniciansTab(
+          allowSelection: true,
+          maxSelection: 2,
+        ),
       ),
-    ),
-  );
+    );
 
-  if (result != null && mounted) {
-    setState(() {
-      _selectedTechnicians = result;
-    });
-    print('✅ Técnicos actualizados en el estado');
+    if (result != null && mounted) {
+      setState(() {
+        _selectedTechnicians = result;
+      });
+      print('✅ Técnicos actualizados en el estado');
+    }
   }
-}
 
   Future<void> _submitForm() async {
     print('=== INICIANDO ENVÍO DE FORMULARIO ===');
@@ -231,7 +234,6 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
       );
 
       print('✅ Fecha y hora: $preferredDateTime');
-      
 
       // Crear documento de solicitud en Firebase
       final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -257,6 +259,10 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
         'technician': null, // Será asignado después
         'estimatedCost': null,
         'notes': '',
+        // 💰 NUEVO: Precio propuesto por el cliente
+        'proposedPrice': double.tryParse(_priceController.text.trim()) ?? 0.0,
+        'priceStatus': 'proposed', // proposed, negotiating, agreed, rejected
+        'negotiationStatus': 'pending', // pending, active, agreed, cancelled
       };
 
       print('📦 Datos de solicitud preparados:');
@@ -291,13 +297,13 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
       }
 
       // 📲 Notificar solo los técnicos seleccionados
-      print('📲 Notificando ${_selectedTechnicians.length} técnicos seleccionados...');
+      print(
+          '📲 Notificando ${_selectedTechnicians.length} técnicos seleccionados...');
       final notificationService = NotificationService();
-      
-      final selectedIds = _selectedTechnicians
-          .map((t) => t['id'] as String)
-          .toList();
-      
+
+      final selectedIds =
+          _selectedTechnicians.map((t) => t['id'] as String).toList();
+
       final techniciansNotified =
           await notificationService.notifySelectedTechnicians(
         requestId: requestId,
@@ -312,21 +318,8 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
         longitude: _longitude ?? 0,
         address: _addressController.text.trim(),
         preferredDate: preferredDateTime,
+              proposedPrice: double.tryParse(_priceController.text.trim()) ?? 0.0,
       );
-
-      print('✅ Técnicos notificados: $techniciansNotified');
-
-      // Éxito
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Solicitud enviada a $techniciansNotified técnicos'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-
       print('✅ Mensaje de éxito mostrado');
 
       // Navegar de vuelta al dashboard después de 1 segundo
@@ -488,6 +481,41 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
                   // Validación básica de teléfono
                   if (value.replaceAll(RegExp(r'\D'), '').length < 10) {
                     return 'Por favor ingresa un teléfono válido';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // 💰 Precio Propuesto del Servicio
+              Text(
+                'Precio Propuesto del Servicio',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _priceController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: 'Ej: 50000',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.grey100,
+                  prefixIcon: const Icon(Icons.attach_money),
+                  prefixText: '\$ ',
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'El precio es requerido';
+                  }
+                  final price = double.tryParse(value);
+                  if (price == null) {
+                    return 'Ingresa un precio válido';
+                  }
+                  if (price <= 0) {
+                    return 'El precio debe ser mayor a 0';
                   }
                   return null;
                 },
@@ -720,4 +748,4 @@ class _ServiceRequestFormScreenState extends State<ServiceRequestFormScreen> {
       ),
     );
   }
-} 
+}
