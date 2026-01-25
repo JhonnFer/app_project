@@ -1,90 +1,87 @@
+//lib\features\auth\presentation\pages\screens\location\location_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../../../../../../core/constants/app_colors.dart';
-import '../../../../../../features/auth/data/datasources/location_service.dart';
-import '../../../../domain/entities/location.dart';
+import 'package:geocoding/geocoding.dart';
+
+import '../../../../../../injection_container.dart';
+import '../../../../domain/entities/user_entity.dart';
+import 'package:app_project/features/auth/domain/usecases/save_location_usecase.dart';
 
 class LocationScreen extends StatefulWidget {
-  const LocationScreen({Key? key}) : super(key: key);
+  const LocationScreen({super.key});
 
   @override
   State<LocationScreen> createState() => _LocationScreenState();
 }
 
-class _LocationScreenState extends State<LocationScreen> {
-  late LocationService _locationService;
-  LocationData? _currentLocation;
-  bool _isLoading = true;
-  String? _errorMessage;
-  final MapController _mapController = MapController();
-  bool _isRealtimeMode = false;
+class _LocationScreenState extends State<LocationScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late String userId;
+
+  LatLng selectedLocation = const LatLng(-0.180653, -78.467834); // Quito
+
+  final TextEditingController latController = TextEditingController();
+  final TextEditingController lngController = TextEditingController();
+  final TextEditingController sectorController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _locationService = LocationService();
-    _initializeLocation();
+    _tabController = TabController(length: 2, vsync: this);
+
+    // Inicializamos los valores
+    latController.text = selectedLocation.latitude.toString();
+    lngController.text = selectedLocation.longitude.toString();
+    sectorController.text = '';
   }
 
-  Future<void> _initializeLocation() async {
-    try {
-      setState(() => _isLoading = true);
-      final location = await _locationService.getCurrentLocation();
-      setState(() {
-        _currentLocation = location;
-        _isLoading = false;
-      });
-      
-      // Centrar el mapa en la ubicación actual
-      _mapController.move(
-        LatLng(location.latitude, location.longitude),
-        15.0,
-      );
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    /// Recibimos el UserEntity desde Navigator
+    final user = ModalRoute.of(context)!.settings.arguments as UserEntity;
+
+    /// Guardamos el UID del usuario para asociarlo a LocationData
+    userId = user.uid;
   }
 
-  void _toggleRealtimeMode() {
-    setState(() => _isRealtimeMode = !_isRealtimeMode);
-    if (_isRealtimeMode) {
-      _startRealtimeTracking();
-    }
-  }
+  Future<void> _saveLocation() async {
+    final lat = double.tryParse(latController.text);
+    final lng = double.tryParse(lngController.text);
+    final sector = sectorController.text.trim();
 
-  void _startRealtimeTracking() {
-    _locationService.getLocationStream().listen(
-      (location) {
-        if (mounted) {
-          setState(() => _currentLocation = location);
-          _mapController.move(
-            LatLng(location.latitude, location.longitude),
-            15.0,
-          );
-        }
-      },
-      onError: (error) {
-        if (mounted) {
-          setState(() {
-            _errorMessage = error.toString();
-            _isRealtimeMode = false;
-          });
-        }
-      },
-    );
-  }
+    print('latController: ${latController.text}');
+    print('lngController: ${lngController.text}');
+    print('sectorController: $sector');
 
-  void _copyToClipboard() {
-    if (_currentLocation != null) {
-      final text =
-          'Lat: ${_currentLocation!.latitude}, Lng: ${_currentLocation!.longitude}\n${_currentLocation!.address}';
-      // En una app real, usarías: Clipboard.setData(ClipboardData(text: text));
+    if (lat == null || lng == null || sector.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Coordenadas copiadas: $text')),
+        const SnackBar(content: Text('Datos de ubicación inválidos')),
+      );
+      return;
+    }
+
+    try {
+      await sl<SaveLocationUseCase>().call(
+        userId: userId,
+        latitude: lat,
+        longitude: lng,
+        sector: sector,
+        accuracy: 0,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación guardada correctamente')),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      print('Error al guardar ubicación: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al guardar ubicación')),
       );
     }
   }
@@ -93,276 +90,115 @@ class _LocationScreenState extends State<LocationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi Ubicación'),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_isRealtimeMode ? Icons.location_on : Icons.location_off),
-            onPressed: _toggleRealtimeMode,
-            tooltip: _isRealtimeMode ? 'Detener rastreo' : 'Iniciar rastreo',
-          ),
-        ],
+        title: const Text('Mi ubicación'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.map), text: 'Mapa'),
+            Tab(icon: Icon(Icons.edit_location), text: 'Manual'),
+          ],
+        ),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.location_off,
-                        size: 80,
-                        color: AppColors.error,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error de Ubicación',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _initializeLocation,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: FlutterMap(
-                        mapController: _mapController,
-                        options: MapOptions(
-                          initialCenter: LatLng(
-                            _currentLocation!.latitude,
-                            _currentLocation!.longitude,
-                          ),
-                          initialZoom: 15.0,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.techserve.app',
-                            maxZoom: 19,
-                          ),
-                          MarkerLayer(
-                            markers: [
-                              Marker(
-                                point: LatLng(
-                                  _currentLocation!.latitude,
-                                  _currentLocation!.longitude,
-                                ),
-                                width: 80,
-                                height: 80,
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppColors.white,
-                                          width: 3,
-                                        ),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: AppColors.shadow,
-                                            blurRadius: 8,
-                                            spreadRadius: 2,
-                                          ),
-                                        ],
-                                      ),
-                                      child: const Icon(
-                                        Icons.location_on,
-                                        color: AppColors.white,
-                                        size: 32,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.shadow,
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Detalles de Ubicación',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildLocationInfoTile(
-                                icon: Icons.north,
-                                label: 'Latitud',
-                                value:
-                                    _currentLocation!.latitude.toStringAsFixed(6),
-                              ),
-                              const SizedBox(height: 8),
-                              _buildLocationInfoTile(
-                                icon: Icons.south_east,
-                                label: 'Longitud',
-                                value:
-                                    _currentLocation!.longitude.toStringAsFixed(6),
-                              ),
-                              const SizedBox(height: 8),
-                              _buildLocationInfoTile(
-                                icon: Icons.my_location,
-                                label: 'Precisión',
-                                value:
-                                    '${_currentLocation!.accuracy.toStringAsFixed(2)} m',
-                              ),
-                              const SizedBox(height: 8),
-                              _buildLocationInfoTile(
-                                icon: Icons.location_on_outlined,
-                                label: 'Dirección',
-                                value: _currentLocation!.address,
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: _copyToClipboard,
-                                      icon: const Icon(Icons.content_copy),
-                                      label: const Text('Copiar'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: _initializeLocation,
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text('Actualizar'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (_isRealtimeMode) ...[
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: AppColors.success,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Rastreo en tiempo real activo',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppColors.success,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-    );
-  }
-
-  Widget _buildLocationInfoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.grey200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          Icon(icon, color: AppColors.primary, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
+          /// 🗺️ MAPA
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: selectedLocation,
+              initialZoom: 15,
+              onTap: (_, point) async {
+                // 1️⃣ Actualizar posición y marcador
+                setState(() {
+                  selectedLocation = point;
+                });
+
+                // 2️⃣ Actualizar coordenadas
+                latController.text = point.latitude.toString();
+                lngController.text = point.longitude.toString();
+
+                // 3️⃣ Feedback inmediato
+                sectorController.text = 'Obteniendo dirección...';
+
+                try {
+                  final placemarks = await placemarkFromCoordinates(
+                    point.latitude,
+                    point.longitude,
+                  );
+
+                  if (placemarks.isNotEmpty) {
+                    final place = placemarks.first;
+
+                    sectorController.text = [
+                      place.street,
+                      place.subLocality,
+                      place.locality,
+                      place.country,
+                    ].where((e) => e != null && e!.isNotEmpty).join(', ');
+                  } else {
+                    sectorController.text =
+                        'Ubicación: ${point.latitude}, ${point.longitude}';
+                  }
+                } catch (e) {
+                  sectorController.text =
+                      'Ubicación: ${point.latitude}, ${point.longitude}';
+                }
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.app_project',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: selectedLocation,
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.red,
+                      size: 40,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          /// ✍️ MANUAL
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                TextField(
+                  controller: latController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Latitud'),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: lngController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Longitud'),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: sectorController,
+                  decoration:
+                      const InputDecoration(labelText: 'Sector / Dirección'),
                 ),
               ],
             ),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _saveLocation,
+        icon: const Icon(Icons.save),
+        label: const Text('Guardar'),
+      ),
     );
-  }
-
-  @override
-  void dispose() {
-    _mapController.dispose();
-    super.dispose();
   }
 }

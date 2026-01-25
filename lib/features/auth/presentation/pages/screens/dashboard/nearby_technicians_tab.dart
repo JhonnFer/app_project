@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../data/datasources/location_service.dart';
 import '../../../../domain/entities/location.dart';
@@ -15,475 +16,219 @@ class NearbyTechniciansTab extends StatefulWidget {
 }
 
 class _NearbyTechniciansTabState extends State<NearbyTechniciansTab> {
-  late LocationService _locationService;
+  final LocationService _locationService = LocationService();
+  final MapController _mapController = MapController();
+
   LocationData? _currentLocation;
+  List<TechnicianLocation> _nearbyTechnicians = [];
+
   bool _isLoading = true;
   String? _errorMessage;
-  final MapController _mapController = MapController();
-  List<TechnicianLocation> _nearbyTechnicians = [];
 
   @override
   void initState() {
     super.initState();
-    _locationService = LocationService();
     _initializeData();
   }
 
   Future<void> _initializeData() async {
     try {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-      // Obtener ubicación actual con timeout personalizado
+      /// 📍 1. OBTENER UBICACIÓN ACTUAL
       LocationData location;
+
       try {
-        location = await _locationService.getCurrentLocation();
-      } catch (e) {
-        // Si falla o tarda demasiado, usar ubicación por defecto (Bogotá)
+        final position = await _locationService.getCurrentPosition();
+
         location = LocationData(
-          latitude: 4.7110,
-          longitude: -74.0055,
-          accuracy: 0.0,
-          address: 'Ubicación predeterminada (Bogotá)',
+          userId: 'default', // 🔴 luego se reemplaza por user real
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+          address: 'Ubicación actual',
           timestamp: DateTime.now(),
         );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Usando ubicación predeterminada'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
+      } catch (_) {
+        /// Fallback si falla GPS
+        location = LocationData(
+          userId: 'default',
+          latitude: -0.180653,
+          longitude: -78.467834, // Quito
+          accuracy: 0,
+          address: 'Ubicación predeterminada',
+          timestamp: DateTime.now(),
+        );
       }
 
-      setState(() => _currentLocation = location);
+      _currentLocation = location;
 
-      // Obtener técnicos reales de Firebase
-      _nearbyTechnicians = await _fetchNearbyTechniciansFromFirebase(location);
+      /// 👨‍🔧 2. OBTENER TÉCNICOS
+      _nearbyTechnicians =
+          await _fetchNearbyTechniciansFromFirebase(location);
 
-      // Si no hay técnicos en Firebase, usar mock como fallback
       if (_nearbyTechnicians.isEmpty) {
         _nearbyTechnicians = _generateMockTechnicians(location);
       }
 
-      setState(() => _isLoading = false);
-
-      // Centrar el mapa en la ubicación actual
       _mapController.move(
         LatLng(location.latitude, location.longitude),
-        13.0,
+        13,
       );
+
+      setState(() => _isLoading = false);
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error al cargar datos: ${e.toString()}';
+        _errorMessage = 'Error al cargar técnicos';
         _isLoading = false;
       });
     }
   }
 
+  /// 🔥 FIREBASE
   Future<List<TechnicianLocation>> _fetchNearbyTechniciansFromFirebase(
       LocationData userLocation) async {
     try {
-      final firestore = FirebaseFirestore.instance;
-
-      // Obtener todos los técnicos de Firestore
-      final techniciansSnapshot = await firestore
+      final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('role', isEqualTo: 'technician')
           .get();
 
-      final technicians = <TechnicianLocation>[];
+      final List<TechnicianLocation> technicians = [];
 
-      // Convertir documentos a TechnicianLocation
-      for (var doc in techniciansSnapshot.docs) {
+      for (final doc in snapshot.docs) {
         final data = doc.data();
 
-        // Crear ubicación del técnico
-        final technicianLocation = LocationData(
-          latitude: data['latitude'] as double? ?? userLocation.latitude,
-          longitude: data['longitude'] as double? ?? userLocation.longitude,
-          accuracy: 5.0,
-          address: data['address'] as String? ?? 'Ubicación desconocida',
+        final techLocation = LocationData(
+          userId: doc.id,
+          latitude: (data['latitude'] ?? userLocation.latitude).toDouble(),
+          longitude: (data['longitude'] ?? userLocation.longitude).toDouble(),
+          accuracy: 5,
+          address: data['address'] ?? 'Ubicación desconocida',
           timestamp: DateTime.now(),
         );
 
-        // Calcular distancia
         final distance = TechnicianLocation.calculateDistance(
           userLocation.latitude,
           userLocation.longitude,
-          technicianLocation.latitude,
-          technicianLocation.longitude,
+          techLocation.latitude,
+          techLocation.longitude,
         );
 
         technicians.add(
           TechnicianLocation(
             id: doc.id,
-            name: data['name'] as String? ?? 'Técnico',
-            profileImage: data['profileImage'] as String? ??
+            name: data['name'] ?? 'Técnico',
+            profileImage: data['profileImage'] ??
                 'https://via.placeholder.com/150',
-            rating: data['rating'] as double? ?? 0.0,
-            completedServices: data['completedServices'] as int? ?? 0,
-            location: technicianLocation,
-            services: List<String>.from(data['specialties'] as List? ?? []),
-            isOnline: data['isAvailable'] as bool? ?? true,
+            rating: (data['rating'] ?? 0).toDouble(),
+            completedServices: data['completedServices'] ?? 0,
+            location: techLocation,
+            services:
+                List<String>.from(data['specialties'] ?? const []),
+            isOnline: data['isAvailable'] ?? true,
             distanceKm: distance,
           ),
         );
       }
 
+      technicians.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
       return technicians;
-    } catch (e) {
-      print('Error fetching technicians from Firebase: $e');
-      // Si falla, retornar lista vacía
+    } catch (_) {
       return [];
     }
   }
 
-  List<TechnicianLocation> _generateMockTechnicians(LocationData userLocation) {
-    // Datos simulados de técnicos cercanos
-    final mockTechnicians = [
+  /// 🧪 MOCK
+  List<TechnicianLocation> _generateMockTechnicians(
+      LocationData userLocation) {
+    return [
       TechnicianLocation(
         id: '1',
         name: 'Carlos García',
         profileImage: 'https://via.placeholder.com/150',
         rating: 4.8,
-        completedServices: 156,
+        completedServices: 120,
         location: LocationData(
-          latitude: userLocation.latitude + 0.005,
+          userId: '1',
+          latitude: userLocation.latitude + 0.004,
           longitude: userLocation.longitude + 0.003,
-          accuracy: 5.0,
-          address: 'Cerca de Plaza Mayor',
+          accuracy: 5,
+          address: 'Centro',
           timestamp: DateTime.now(),
         ),
-        services: ['Refrigerador', 'Lavadora', 'Microondas'],
+        services: ['Lavadoras', 'Refrigeradores'],
         isOnline: true,
-        distanceKm: 0.75,
-      ),
-      TechnicianLocation(
-        id: '2',
-        name: 'María López',
-        profileImage: 'https://via.placeholder.com/150',
-        rating: 4.9,
-        completedServices: 203,
-        location: LocationData(
-          latitude: userLocation.latitude - 0.004,
-          longitude: userLocation.longitude + 0.006,
-          accuracy: 5.0,
-          address: 'Centro Comercial',
-          timestamp: DateTime.now(),
-        ),
-        services: ['Horno', 'Secadora', 'Refrigerador'],
-        isOnline: true,
-        distanceKm: 1.2,
-      ),
-      TechnicianLocation(
-        id: '3',
-        name: 'Pedro Martínez',
-        profileImage: 'https://via.placeholder.com/150',
-        rating: 4.6,
-        completedServices: 89,
-        location: LocationData(
-          latitude: userLocation.latitude + 0.008,
-          longitude: userLocation.longitude - 0.004,
-          accuracy: 5.0,
-          address: 'Av. Principal',
-          timestamp: DateTime.now(),
-        ),
-        services: ['Lavadora', 'Aire Acondicionado'],
-        isOnline: false,
-        distanceKm: 1.8,
-      ),
-      TechnicianLocation(
-        id: '4',
-        name: 'Ana Rodríguez',
-        profileImage: 'https://via.placeholder.com/150',
-        rating: 4.7,
-        completedServices: 142,
-        location: LocationData(
-          latitude: userLocation.latitude - 0.006,
-          longitude: userLocation.longitude - 0.005,
-          accuracy: 5.0,
-          address: 'Zona Residencial',
-          timestamp: DateTime.now(),
-        ),
-        services: ['Refrigerador', 'Congelador', 'Horno'],
-        isOnline: true,
-        distanceKm: 1.45,
+        distanceKm: 0.7,
       ),
     ];
-
-    // Ordenar por distancia
-    mockTechnicians.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    return mockTechnicians;
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _errorMessage != null
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline,
-                        size: 80, color: AppColors.error),
-                    const SizedBox(height: 16),
-                    Text(_errorMessage!),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _initializeData,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              )
-            : Column(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        initialCenter: LatLng(
-                          _currentLocation!.latitude,
-                          _currentLocation!.longitude,
-                        ),
-                        initialZoom: 13.0,
-                      ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.techserve.app',
-                        ),
-                        MarkerLayer(
-                          markers: [
-                            // Marcador del usuario
-                            Marker(
-                              point: LatLng(
-                                _currentLocation!.latitude,
-                                _currentLocation!.longitude,
-                              ),
-                              width: 60,
-                              height: 60,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: AppColors.white,
-                                    width: 3,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.location_on,
-                                  color: AppColors.white,
-                                ),
-                              ),
-                            ),
-                            // Marcadores de técnicos
-                            ..._nearbyTechnicians.map(
-                              (tech) => Marker(
-                                point: LatLng(
-                                  tech.location.latitude,
-                                  tech.location.longitude,
-                                ),
-                                width: 60,
-                                height: 60,
-                                child: GestureDetector(
-                                  onTap: () => _showTechnicianDetails(tech),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: tech.isOnline
-                                          ? AppColors.success
-                                          : AppColors.grey400,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppColors.white,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.person,
-                                      color: AppColors.white,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.shadow,
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: ListView.builder(
-                        itemCount: _nearbyTechnicians.length,
-                        itemBuilder: (context, index) {
-                          final tech = _nearbyTechnicians[index];
-                          return _buildTechnicianCard(tech);
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              );
-  }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-  Widget _buildTechnicianCard(TechnicianLocation technician) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: Stack(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.grey200,
-              child: Icon(
-                Icons.person,
+    if (_errorMessage != null) {
+      return Center(child: Text(_errorMessage!));
+    }
+
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: LatLng(
+          _currentLocation!.latitude,
+          _currentLocation!.longitude,
+        ),
+        initialZoom: 13,
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.app.project',
+        ),
+        MarkerLayer(
+          markers: [
+            /// 📍 Usuario
+            Marker(
+              point: LatLng(
+                _currentLocation!.latitude,
+                _currentLocation!.longitude,
+              ),
+              width: 40,
+              height: 40,
+              child: const Icon(
+                Icons.my_location,
                 color: AppColors.primary,
+                size: 40,
               ),
             ),
-            if (technician.isOnline)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: AppColors.success,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.white, width: 2),
-                  ),
+
+            /// 👨‍🔧 Técnicos
+            ..._nearbyTechnicians.map(
+              (tech) => Marker(
+                point: LatLng(
+                  tech.location.latitude,
+                  tech.location.longitude,
+                ),
+                width: 40,
+                height: 40,
+                child: Icon(
+                  Icons.person_pin_circle,
+                  color: tech.isOnline
+                      ? AppColors.success
+                      : AppColors.grey400,
+                  size: 40,
                 ),
               ),
-          ],
-        ),
-        title: Text(
-          technician.name,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.star, size: 14, color: Colors.amber),
-                const SizedBox(width: 4),
-                Text(
-                    '${technician.rating} (${technician.completedServices} servicios)'),
-              ],
-            ),
-            Text(
-              '${technician.distanceKm.toStringAsFixed(1)} km',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
             ),
           ],
         ),
-        trailing: ElevatedButton.icon(
-          onPressed: () => _showTechnicianDetails(technician),
-          icon: const Icon(Icons.info_outline, size: 16),
-          label: const Text('Ver'),
-        ),
-      ),
+      ],
     );
-  }
-
-  void _showTechnicianDetails(TechnicianLocation technician) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              technician.name,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.star, color: Colors.amber),
-                const SizedBox(width: 8),
-                Text(
-                    '${technician.rating} - ${technician.completedServices} servicios'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.location_on, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text('${technician.distanceKm.toStringAsFixed(1)} km'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Servicios:',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: technician.services
-                  .map(
-                    (service) => Chip(
-                      label: Text(service),
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Contactando a ${technician.name}...'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: const Text('Solicitar Servicio'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _mapController.dispose();
-    super.dispose();
   }
 }

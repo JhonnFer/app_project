@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../../core/constants/app_strings.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/routes/app_router.dart';
@@ -12,8 +13,45 @@ class GuestDashboardScreen extends StatefulWidget {
 
 class _GuestDashboardScreenState extends State<GuestDashboardScreen> {
   int _selectedIndex = 0;
+  List<Map<String, dynamic>> _availableTechnicians = [];
+  bool _isLoadingTechnicians = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadAvailableTechnicians();
+  }
+
+  Future<void> _loadAvailableTechnicians() async {
+    setState(() => _isLoadingTechnicians = true);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final snapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'technician')
+          .where('isAvailable', isEqualTo: true)
+          .get();
+
+      setState(() {
+        _availableTechnicians = snapshot.docs
+            .map((doc) => {
+                  'id': doc.id,
+                  'name': doc['name'] ?? 'Técnico',
+                  'rating': doc['rating'] ?? 0.0,
+                  'completedServices': doc['completedServices'] ?? 0,
+                  'specialties': List<String>.from(doc['specialties'] ?? []),
+                  'profileImage':
+                      doc['profileImage'] ?? 'https://via.placeholder.com/150',
+                })
+            .toList();
+      });
+    } catch (e) {
+      print('Error cargando técnicos: $e');
+    } finally {
+      setState(() => _isLoadingTechnicians = false);
+    }
+  }
+
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +137,8 @@ class _GuestDashboardScreenState extends State<GuestDashboardScreen> {
                       foregroundColor: AppColors.primary,
                     ),
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, AppRoutes.register);
+                      Navigator.pushReplacementNamed(
+                          context, AppRoutes.register);
                     },
                     child: const Text('Crear Cuenta Ahora'),
                   ),
@@ -117,7 +156,8 @@ class _GuestDashboardScreenState extends State<GuestDashboardScreen> {
           _buildServiceOverviewCard(
             icon: Icons.kitchen_outlined,
             title: 'Electrodomésticos',
-            description: 'Reparación de refrigeradores,\nllavadoras, microondas y más',
+            description:
+                'Reparación de refrigeradores,\nllavadoras, microondas y más',
           ),
           const SizedBox(height: 12),
           _buildServiceOverviewCard(
@@ -129,7 +169,8 @@ class _GuestDashboardScreenState extends State<GuestDashboardScreen> {
           _buildServiceOverviewCard(
             icon: Icons.security_outlined,
             title: 'Garantía de Calidad',
-            description: 'Garantía en reparaciones y\ncompromiso con el servicio',
+            description:
+                'Garantía en reparaciones y\ncompromiso con el servicio',
           ),
           const SizedBox(height: 24),
           // CTA Buttons
@@ -149,36 +190,212 @@ class _GuestDashboardScreenState extends State<GuestDashboardScreen> {
   }
 
   Widget _buildExploreTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+    if (_isLoadingTechnicians) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_availableTechnicians.isEmpty) {
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.lock_outlined,
+              Icons.people_outline,
               size: 80,
               color: AppColors.grey300,
             ),
             const SizedBox(height: 16),
             Text(
-              'Contenido Restringido',
+              'No hay técnicos disponibles',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Para explorar todos los servicios,\ndebes crear una cuenta o iniciar sesión',
+              'Intenta más tarde',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.register);
-              },
-              child: const Text('Registrarse Gratis'),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Técnicos Disponibles',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _availableTechnicians.length,
+            itemBuilder: (context, index) {
+              final tech = _availableTechnicians[index];
+              return _buildTechnicianCard(tech);
+            },
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.info),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.lock_outline,
+                      color: AppColors.info,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Acceso Limitado',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: AppColors.info,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Para solicitar servicios a técnicos, debes iniciar sesión o crear una cuenta.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.login);
+                        },
+                        child: const Text('Iniciar Sesión'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.register);
+                        },
+                        child: const Text('Registrarse'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTechnicianCard(Map<String, dynamic> tech) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppColors.grey200,
+                  child: Icon(
+                    Icons.person,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tech['name'] as String,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${tech['rating']} (${tech['completedServices']} servicios)',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if ((tech['specialties'] as List<String>).isNotEmpty)
+              Wrap(
+                spacing: 6,
+                children: (tech['specialties'] as List<String>)
+                    .take(3)
+                    .map(
+                      (service) => Chip(
+                        label: Text(
+                          service,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        backgroundColor:
+                            AppColors.primary.withValues(alpha: 0.1),
+                        side: BorderSide(
+                            color: AppColors.primary.withValues(alpha: 0.3)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                          'Debes iniciar sesión para contactar técnicos'),
+                      action: SnackBarAction(
+                        label: 'Ir a Login',
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.login);
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Ver Detalles'),
+              ),
             ),
           ],
         ),

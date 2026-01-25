@@ -1,13 +1,10 @@
 import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
-import '../../../auth/domain/entities/location.dart';
 
 class LocationService {
   static final LocationService _instance = LocationService._internal();
 
-  factory LocationService() {
-    return _instance;
-  }
+  factory LocationService() => _instance;
 
   LocationService._internal();
 
@@ -21,88 +18,25 @@ class LocationService {
     return await Geolocator.isLocationServiceEnabled();
   }
 
-  Future<LocationData> getCurrentLocation() async {
-    // Verificar si el servicio de ubicación está habilitado
+  /// 🔥 SOLO retorna Position (infraestructura pura)
+  Future<Position> getCurrentPosition() async {
     final isEnabled = await isLocationServiceEnabled();
     if (!isEnabled) {
       throw Exception('El servicio de ubicación no está habilitado');
     }
 
-    // Verificar permisos
     final hasPermission = await requestLocationPermission();
     if (!hasPermission) {
       throw Exception('Permiso de ubicación denegado');
     }
 
-    // Obtener posición actual
-    final position = await Geolocator.getCurrentPosition(
+    return await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
       timeLimit: const Duration(seconds: 5),
     );
-
-    // Obtener dirección (geocodificación inversa aproximada)
-    final address = await _getAddressFromCoordinates(
-      position.latitude,
-      position.longitude,
-    );
-
-    return LocationData(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracy: position.accuracy,
-      address: address,
-      timestamp: DateTime.now(),
-    );
   }
 
-  Stream<LocationData> getLocationStream({
-    Duration updateInterval = const Duration(seconds: 5),
-  }) async* {
-    // Verificar si el servicio de ubicación está habilitado
-    final isEnabled = await isLocationServiceEnabled();
-    if (!isEnabled) {
-      throw Exception('El servicio de ubicación no está habilitado');
-    }
-
-    // Obtener stream de posición
-    final positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Actualizar cada 10 metros
-      ),
-    );
-
-    await for (final position in positionStream) {
-      final address = await _getAddressFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      yield LocationData(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
-        address: address,
-        timestamp: DateTime.now(),
-      );
-    }
-  }
-
-  // Geocodificación inversa aproximada (sin API externa)
-  Future<String> _getAddressFromCoordinates(
-    double latitude,
-    double longitude,
-  ) async {
-    try {
-      // Aquí podrías integrar una API de geocodificación como Nominatim
-      // Por ahora retornamos las coordenadas
-      return 'Lat: ${latitude.toStringAsFixed(4)}, Lng: ${longitude.toStringAsFixed(4)}';
-    } catch (e) {
-      return 'Ubicación: $latitude, $longitude';
-    }
-  }
-
-  // Distancia entre dos puntos
+  // Utilidad (NO dominio)
   double calculateDistance(
     double lat1,
     double lon1,
@@ -120,7 +54,7 @@ class LocationService {
             math.sin(dLon / 2);
 
     final c = 2 * math.asin(math.sqrt(a));
-    return earthRadiusKm * c * 1000; // Retorna en metros
+    return earthRadiusKm * c * 1000;
   }
 
   double _toRadians(double degrees) => degrees * (math.pi / 180.0);

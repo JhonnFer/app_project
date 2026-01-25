@@ -17,6 +17,7 @@ import 'features/auth/presentation/pages/screens/auth/login_screen.dart';
 import 'features/auth/presentation/pages/screens/auth/register_screen.dart';
 import 'features/auth/presentation/pages/screens/splash_screen.dart';
 import 'features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
+import 'features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,20 +39,25 @@ class MyApp extends StatelessWidget {
     return Provider<SessionManager>(
       create: (_) => SessionManager(),
       child: MaterialApp(
-        title: 'App Técnicos',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme(),
+  title: 'App Técnicos',
+  debugShowCheckedModeBanner: false,
+  theme: AppTheme.lightTheme(),
+  navigatorKey: AppRouter.navigatorKey,
 
-        navigatorKey: AppRouter.navigatorKey,
+  initialRoute: AppRoutes.splash,
 
-        initialRoute: AppRoutes.splash,
-        routes: {
-          AppRoutes.splash: (_) => const SplashScreen(),
-          AppRoutes.login: (_) => const LoginScreen(),
-          AppRoutes.register: (_) => const RegisterScreen(),
-          AppRoutes.dashboard: (_) => const DashboardScreen(),
-        },
-      ),
+  // 👇 RUTAS SIMPLES (splash, auth, dashboards)
+  routes: {
+    AppRoutes.splash: (_) => const SplashScreen(),
+    AppRoutes.login: (_) => const LoginScreen(),
+    AppRoutes.register: (_) => const RegisterScreen(),
+    AppRoutes.dashboard: (_) => const DashboardScreen(),
+    AppRoutes.guestDashboard: (_) => const GuestDashboardScreen(),
+  },
+
+  // 👇 RUTAS COMPLEJAS / PROTEGIDAS
+  onGenerateRoute: AppRouter.generateRoute,
+),
     );
   }
 }

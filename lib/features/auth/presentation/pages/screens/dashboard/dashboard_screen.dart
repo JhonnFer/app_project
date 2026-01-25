@@ -74,7 +74,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.location_on_outlined),
             onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.location);
+              if (_currentUser == null) return;
+
+              Navigator.of(context).pushNamed(
+                AppRoutes.location,
+                arguments: _currentUser, // 👈 PASAMOS EL USER
+              );
             },
             tooltip: 'Mi Ubicación',
           ),

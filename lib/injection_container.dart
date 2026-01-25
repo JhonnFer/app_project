@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Features - Auth
+// ===== Auth =====
 import 'features/auth/data/datasources/auth_service.dart';
 import 'features/auth/data/datasources/local_data_source.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
@@ -15,19 +15,21 @@ import 'features/auth/domain/usecases/check_session_usecase.dart';
 import 'features/auth/domain/usecases/logout_usecase.dart';
 import 'features/auth/domain/usecases/get_user_services_usecase.dart';
 
+// ===== Location =====
+import 'features/auth/data/repositories/location_repository_impl.dart';
+import 'features/auth/domain/repositories/location_repository.dart';
+import 'features/auth/domain/usecases/save_location_usecase.dart';
+
 final sl = GetIt.instance;
 
 Future<void> init() async {
-  // ===== Features - Auth =====
-
-  // Use Cases
+  // ===== Auth =====
   sl.registerLazySingleton(() => LoginUseCase(sl()));
   sl.registerLazySingleton(() => RegisterUseCase(sl()));
   sl.registerLazySingleton(() => CheckSessionUseCase(repository: sl()));
   sl.registerLazySingleton(() => LogoutUseCase(repository: sl()));
   sl.registerLazySingleton(() => GetUserServicesUseCase(repository: sl()));
 
-  // Repository
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(
       remoteDataSource: sl(),
@@ -35,7 +37,6 @@ Future<void> init() async {
     ),
   );
 
-  // Data Sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSourceImpl(
       auth: sl(),
@@ -47,13 +48,19 @@ Future<void> init() async {
     () => AuthLocalDataSourceImpl(prefs: sl()),
   );
 
-  // ===== External Dependencies =====
+  // ===== Location =====
+  sl.registerLazySingleton<LocationRepository>(
+    () => LocationRepositoryImpl(),
+  );
 
-  // Firebase
+  sl.registerLazySingleton(
+    () => SaveLocationUseCase(sl()),
+  );
+
+  // ===== External =====
   sl.registerLazySingleton(() => FirebaseAuth.instance);
   sl.registerLazySingleton(() => FirebaseFirestore.instance);
 
-  // Local Storage
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => prefs);
 }

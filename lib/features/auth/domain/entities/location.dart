@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 class LocationData {
+  final String userId;
   final double latitude;
   final double longitude;
   final double accuracy;
@@ -8,6 +9,7 @@ class LocationData {
   final DateTime timestamp;
 
   LocationData({
+    required this.userId,
     required this.latitude,
     required this.longitude,
     required this.accuracy,
@@ -15,10 +17,8 @@ class LocationData {
     required this.timestamp,
   });
 
-  // Método para obtener coordenadas formateadas
   String get formattedCoordinates => '$latitude, $longitude';
 
-  // Distancia aproximada entre dos puntos en metros (Haversine)
   double distanceTo(LocationData other) {
     const double earthRadiusKm = 6371.0;
     final dLat = _toRadians(other.latitude - latitude);
@@ -31,7 +31,7 @@ class LocationData {
             math.sin(dLon / 2);
 
     final c = 2 * math.asin(math.sqrt(a));
-    return earthRadiusKm * c * 1000; // Retorna en metros
+    return earthRadiusKm * c * 1000;
   }
 
   double _toRadians(double degrees) => degrees * (math.pi / 180.0);
