@@ -8,11 +8,10 @@ import '../../features/auth/presentation/pages/screens/location/location_screen.
 import '../../features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/service_request_form_screen.dart';
-import '../../features/auth/presentation/pages/screens/dashboard/test_price_flow_screen.dart';
-import '../../features/auth/presentation/pages/screens/notifications_screen.dart';
+import '../../features/auth/presentation/pages/screens/dashboard/notifications_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/login_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/register_screen.dart';
-import '../../features/auth/presentation/pages/screens/splash_screen.dart';
+import '../../features/auth/presentation/pages/screens/dashboard/splash_screen.dart';
 
 /// Router centralizado con protección de permisos
 /// EJEMPLO DE USO: Solo para mostrar cómo implementarlo
@@ -192,12 +191,7 @@ class AppRouter {
           builder: (_) => const NotificationsScreen(),
         );
 
-      case AppRoutes.testPriceFlow:
-        return MaterialPageRoute(
-          settings: settings,
-          builder: (_) => const TestPriceFlowScreen(),
-        );
-
+      
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(

@@ -16,7 +16,7 @@ import 'features/auth/presentation/providers/session_provider.dart';
 // Screens
 import 'features/auth/presentation/pages/screens/auth/login_screen.dart';
 import 'features/auth/presentation/pages/screens/auth/register_screen.dart';
-import 'features/auth/presentation/pages/screens/splash_screen.dart';
+import 'features/auth/presentation/pages/screens/dashboard/splash_screen.dart';
 import 'features/auth/presentation/pages/screens/dashboard/dashboard_screen.dart';
 import 'features/auth/presentation/pages/screens/dashboard/guest_dashboard_screen.dart';
 

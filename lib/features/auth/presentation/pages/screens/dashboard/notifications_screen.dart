@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../../../core/constants/app_colors.dart';
-import '../../../domain/entities/user_entity.dart';
-import '../../../presentation/providers/session_provider.dart';
-import '../screens/dashboard/technician_notifications_tab.dart';
+import '../../../../../../../core/constants/app_colors.dart';
+import '../../../../domain/entities/user_entity.dart';
+import '../../../providers/session_provider.dart';
+import 'technician_notifications_tab.dart';
 
 /// 🔔 Screen de notificaciones - Acceso según rol
 class NotificationsScreen extends StatefulWidget {
@@ -44,7 +44,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           title: const Text('Notificaciones'),
           elevation: 0,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        
       );
     }
 
@@ -55,6 +55,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           title: const Text('Notificaciones'),
           elevation: 0,
         ),
+        
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

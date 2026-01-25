@@ -1,7 +1,7 @@
 // lib/features/auth/presentation/pages/screens/splash_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
-import '../../../domain/usecases/check_session_usecase.dart';
+import '../../../../domain/usecases/check_session_usecase.dart';
 
 final sl = GetIt.instance;
 
