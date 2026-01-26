@@ -1,8 +1,8 @@
 // lib/features/auth/presentation/widgets/common/permission_button.dart
 import 'package:flutter/material.dart';
-import '../../../../../core/constants/app_permissions.dart';
-import '../../../../../core/utils/permission_extensions.dart';
-import '../../../domain/entities/user_entity.dart';
+import '../../../../core/constants/app_permissions.dart';
+import '../../../../core/utils/permission_extensions.dart';
+import '../../domain/entities/user_entity.dart';
 
 /// Botón que solo se muestra si el usuario tiene el permiso requerido
 class PermissionButton extends StatelessWidget {

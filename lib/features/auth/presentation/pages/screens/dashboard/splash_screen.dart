@@ -20,38 +20,37 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSession() async {
-    // Esperar 1 segundo para mostrar la splash
-    await Future.delayed(const Duration(seconds: 1));
+  // Mostrar splash
+  await Future.delayed(const Duration(seconds: 1));
 
-    try {
-      // Verificar si hay sesión guardada
-      final result = await sl<CheckSessionUseCase>()(NoParams());
+  try {
+    final result = await sl<CheckSessionUseCase>()(NoParams());
 
-      result.fold(
-        // Si hay error, ir a login
-        (failure) {
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/login');
-          }
-        },
-        // Si hay usuario, ir al dashboard
-        (user) {
-          if (user != null) {
-            if (mounted) {
-              Navigator.of(context).pushReplacementNamed('/dashboard');
-            }
-          } else if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/login');
-          }
-        },
-      );
-    } catch (e) {
-      // Error, ir a login
-      if (mounted) {
+    result.fold(
+      // Error → Login
+      (failure) {
+        if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/login');
-      }
-    }
+      },
+
+      // Usuario válido → Dashboard correcto
+      (user) {
+        if (!mounted) return;
+
+        if (user == null) {
+          Navigator.of(context).pushReplacementNamed('/login');
+          return;
+        }
+
+        // 👇 navegación normal de la app
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      },
+    );
+  } catch (_) {
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/login');
   }
+}
 
   @override
   Widget build(BuildContext context) {

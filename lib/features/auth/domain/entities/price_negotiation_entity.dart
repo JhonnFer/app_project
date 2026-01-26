@@ -2,20 +2,19 @@ import 'package:equatable/equatable.dart';
 
 /// 💰 Entidad de dominio para negociación de precios
 class PriceNegotiationEntity extends Equatable {
-  final String id;
-  final String requestId;
-  final String
-      senderId; // Usuario que envía la contraoferta (técnico o cliente)
+  final String id;             // ID del documento en Firestore
+  final String requestId;      // ID de la solicitud original
+  final String senderId;       // Usuario que envía la oferta (técnico o cliente)
   final String senderName;
-  final String recipientId; // Usuario que recibe la contraoferta
+  final String recipientId;    // Usuario que recibe la oferta
   final String recipientName;
-  final double proposedPrice; // Precio propuesto en esta contraoferta
-  final double? originalPrice; // Precio original propuesto por el cliente
-  final String reason; // Razón de la contraoferta
-  final String status; // pending, accepted, rejected, expired
-  final DateTime createdAt;
-  final DateTime? respondedAt;
-  final String? responseReason;
+  final double proposedPrice;  // Precio propuesto en esta oferta
+  final double? originalPrice; // Precio original de la solicitud, si existe
+  final String reason;         // Motivo de la oferta
+  final String status;         // pending, accepted, rejected, expired
+  final DateTime createdAt;    // Fecha de creación
+  final DateTime? respondedAt; // Fecha de respuesta
+  final String? responseReason; // Motivo de aceptación/rechazo
 
   const PriceNegotiationEntity({
     required this.id,

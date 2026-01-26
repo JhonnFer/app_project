@@ -1,9 +1,9 @@
 // lib/features/auth/presentation/widgets/common/role_restricted_widget.dart
 import 'package:flutter/material.dart';
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/utils/permission_extensions.dart';
-import '../../../../auth/domain/entities/user_entity.dart';
-import '../../../../../core/constants/app_permissions.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/permission_extensions.dart';
+import '../../domain/entities/user_entity.dart';
+import '../../../../core/constants/app_permissions.dart';
 
 /// Widget que muestra contenido solo para un rol específico
 class RoleRestrictedWidget extends StatelessWidget {

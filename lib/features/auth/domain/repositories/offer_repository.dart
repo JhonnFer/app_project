@@ -1,3 +1,4 @@
+// lib/features/auth/domain/repositories/offer_repository.dart
 import '../entities/service_request_offer_entity.dart';
 
 abstract class OfferRepository {

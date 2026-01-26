@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../../../core/constants/app_colors.dart';
-import '../../../data/datasources/notification_service.dart';
-import '../../../domain/entities/user_entity.dart';
-import '../../../presentation/providers/session_provider.dart';
+import '../../../../../core/constants/app_colors.dart';
+import '../../data/datasources/notification_service.dart';
+import '../../domain/entities/user_entity.dart';
+import '../providers/session_provider.dart';
 
 /// 💰 Widget para mostrar y manejar contrapropuestas de precio
 class PriceCounterOfferWidget extends StatefulWidget {

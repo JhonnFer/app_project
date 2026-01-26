@@ -20,6 +20,15 @@ import 'features/auth/data/repositories/location_repository_impl.dart';
 import 'features/auth/domain/repositories/location_repository.dart';
 import 'features/auth/domain/usecases/save_location_usecase.dart';
 
+//oferta de servicios
+import 'features/auth/data/datasources/price_negotiation_remote_datasource.dart';
+import 'features/auth/data/repositories/price_negotiation_repository_impl.dart';
+import 'features/auth/domain/repositories/price_negotiation_repository.dart';
+import 'features/auth/domain/usecases/get_pending_negotiations_usecase.dart';
+import 'features/auth/domain/usecases/respond_to_negotiation_usecase.dart';
+import 'features/auth/data/datasources/price_negotiation_remote_datasource_impl.dart';
+
+
 final sl = GetIt.instance;
 
 Future<void> init() async {
@@ -63,4 +72,28 @@ Future<void> init() async {
 
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => prefs);
+
+
+  // PRICE NEGOTIATION
+  // ===============================
+
+  // Datasource
+  sl.registerLazySingleton<PriceNegotiationRemoteDatasource>(
+    () => PriceNegotiationRemoteDatasourceImpl(
+      firestore: sl(),
+    ),
+  );
+  // Repository
+  sl.registerLazySingleton<PriceNegotiationRepository>(
+    () => PriceNegotiationRepositoryImpl(sl()),
+  );
+
+  // UseCases
+  sl.registerLazySingleton(
+    () => GetPendingNegotiationsUseCase(sl()),
+  );
+
+  sl.registerLazySingleton(
+    () => RespondToNegotiationUseCase(sl()),
+  );
 }

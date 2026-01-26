@@ -12,17 +12,9 @@ class OfferFirestoreRepository implements OfferRepository {
     final docRef = firestore.collection('offers').doc(offer.id);
     await docRef.set({
       'requestId': offer.requestId,
-      'senderId': offer.senderId,
       'senderName': offer.senderName,
-      'recipientId': offer.recipientId,
-      'recipientName': offer.recipientName,
       'proposedPrice': offer.proposedPrice,
-      'originalPrice': offer.originalPrice,
-      'reason': offer.reason,
       'status': offer.status.name,
-      'createdAt': offer.createdAt.toIso8601String(),
-      'respondedAt': offer.respondedAt?.toIso8601String(),
-      'responseReason': offer.responseReason,
     });
   }
 
@@ -38,22 +30,11 @@ class OfferFirestoreRepository implements OfferRepository {
       return Offer(
         id: doc.id,
         requestId: data['requestId'],
-        senderId: data['senderId'],
         senderName: data['senderName'],
-        recipientId: data['recipientId'],
-        recipientName: data['recipientName'],
         proposedPrice: (data['proposedPrice'] as num).toDouble(),
-        originalPrice:
-            data['originalPrice'] != null ? (data['originalPrice'] as num).toDouble() : null,
-        reason: data['reason'],
         status: OfferStatus.values.firstWhere(
             (e) => e.name == (data['status'] as String),
             orElse: () => OfferStatus.pending),
-        createdAt: DateTime.parse(data['createdAt']),
-        respondedAt: data['respondedAt'] != null
-            ? DateTime.parse(data['respondedAt'])
-            : null,
-        responseReason: data['responseReason'],
       );
     }).toList();
   }
@@ -71,9 +52,9 @@ class OfferFirestoreRepository implements OfferRepository {
     for (var doc in offersQuery.docs) {
       final docRef = firestore.collection('offers').doc(doc.id);
       if (doc.id == offerId) {
-        batch.update(docRef, {'status': OfferStatus.accepted.name, 'respondedAt': DateTime.now().toIso8601String()});
+        batch.update(docRef, {'status': OfferStatus.accepted.name});
       } else {
-        batch.update(docRef, {'status': OfferStatus.rejected.name, 'respondedAt': DateTime.now().toIso8601String()});
+        batch.update(docRef, {'status': OfferStatus.rejected.name});
       }
     }
 

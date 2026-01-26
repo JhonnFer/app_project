@@ -263,3 +263,9 @@ lib/
 ---
 
 ✍️ **Documentación técnica – Proyecto Flutter con Firebase**
+🧩 Por qué esto es correcto (arquitectura Clean)
+Pantalla	Responsabilidad
+SplashScreen	Verificar sesión
+Dashboard	Navegación funcional
+PriceNegotiationScreen	Feature específica
+AppRouter	Control de rutas

@@ -11,6 +11,7 @@ import '../../features/auth/presentation/pages/screens/dashboard/service_request
 import '../../features/auth/presentation/pages/screens/dashboard/notifications_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/login_screen.dart';
 import '../../features/auth/presentation/pages/screens/auth/register_screen.dart';
+import '../../features/auth/presentation/pages/screens/dashboard/price_negotiation_screen.dart';
 import '../../features/auth/presentation/pages/screens/dashboard/splash_screen.dart';
 
 /// Router centralizado con protección de permisos
@@ -190,7 +191,6 @@ class AppRouter {
           settings: settings,
           builder: (_) => const NotificationsScreen(),
         );
-
       
       default:
         return MaterialPageRoute(
@@ -226,5 +226,5 @@ abstract class AppRoutes {
   static const String serviceDetail = '/service-detail';
   static const String notifications = '/notifications';
   static const String settings = '/settings';
-  static const String testPriceFlow = '/test-price-flow';
+  
 }

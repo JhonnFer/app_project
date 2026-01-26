@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_services.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_services.dart';
 
 class ServiceChecklistWidget extends StatefulWidget {
   final List<ApplianceService> selectedServices;

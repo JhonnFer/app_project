@@ -9,6 +9,10 @@ import '../../../../domain/entities/user_entity.dart';
 import '../../../../domain/usecases/get_user_services_usecase.dart';
 import '../../../../presentation/providers/session_provider.dart';
 import 'nearby_technicians_tab.dart';
+import '../../../../presentation/widgets/price_negotiations_section.dart';
+
+
+
 
 final sl = GetIt.instance;
 
@@ -271,62 +275,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildExploreTab() {
-    if (_currentUser == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 16),
-          Text(
-            '💰 Negociaciones de Precios',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Solicitudes organizadas por estado',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 24),
-
-          // 📋 PENDIENTES (Amarillo/Azul)
-          _buildNegotiationSection(
-            title: '⏳ Negociaciones Pendientes',
-            subtitle: 'En espera de aceptar o rechazar',
-            icon: Icons.schedule,
-            color: Colors.blue,
-            status: 'pending',
-          ),
-          const SizedBox(height: 16),
-
-          // ✅ ACEPTADAS (Verde)
-          _buildNegotiationSection(
-            title: '✅ Negociaciones Aceptadas',
-            subtitle: 'Acuerdos completados',
-            icon: Icons.check_circle,
-            color: Colors.green,
-            status: 'accepted',
-          ),
-          const SizedBox(height: 16),
-
-          // ❌ RECHAZADAS (Rojo)
-          _buildNegotiationSection(
-            title: '❌ Negociaciones Rechazadas',
-            subtitle: 'Propuestas descartadas',
-            icon: Icons.cancel,
-            color: Colors.red,
-            status: 'rejected',
-          ),
-        ],
-      ),
-    );
+Widget _buildExploreTab() {
+  if (_currentUser == null) {
+    return const Center(child: CircularProgressIndicator());
   }
+
+  return PriceNegotiationsSection(
+    recipientId: _currentUser!.uid,
+    getNegotiations: sl(), // GetPendingNegotiationsUseCase
+    respond: sl(),        // RespondToNegotiationUseCase
+  );
+}
 
   /// Constructor para cada sección de negociaciones
   Widget _buildNegotiationSection({
